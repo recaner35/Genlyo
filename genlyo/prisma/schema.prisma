@@ -1,0 +1,355 @@
+generator client {
+  provider        = "prisma-client-js"
+  previewFeatures = ["driverAdapters"]
+}
+
+datasource db {
+  provider  = "postgresql"
+}
+
+// ==========================================
+// 🛡️ YETKİLENDİRME (KULLANICI VE ROLLER)
+// ==========================================
+
+enum UserRole {
+  ADMIN           // Sistem Yöneticisi (Her şeyi görür ve yapar)
+  REGION_MANAGER  // Bölge Müdürü (Sadece kendi bölgesini yönetir)
+  STORE_MANAGER   // Mağaza Müdürü (Sadece kendi mağazasını yönetir)
+  USER            // Standart Kullanıcı (Personel vb.)
+}
+
+model User {
+  id        String   @id @default(uuid())
+  email     String   @unique
+  password  String   // Güvenli (hash'lenmiş) şifre
+  name      String
+  role      UserRole @default(USER)
+  isActive  Boolean  @default(true)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  // İLİŞKİLER: Kullanıcı bir bölgeye mi, mağazaya mı bağlı?
+  regionId  String?  @unique 
+  region    Region?  @relation("RegionManager", fields: [regionId], references: [id])
+
+  storeId   String?  @unique
+  store     Store?   @relation("StoreManager", fields: [storeId], references: [id])
+
+  // Personel tablosuyla bağlantı (Mevcut personel ile eşleştirme için)
+  personnelId String?   @unique
+  personnel   Personnel? @relation(fields: [personnelId], references: [id])
+}
+
+// ==========================================
+// ORGANİZASYONEL HİYERARŞİ
+// ==========================================
+
+model Channel {
+  id      String   @id @default(uuid())
+  name    String   @unique
+  regions Region[]
+}
+
+model Region {
+  id        String   @id @default(uuid())
+  name      String   @unique
+  channelId String
+  channel   Channel  @relation(fields: [channelId], references: [id])
+  cities    City[]
+  stores    Store[]
+
+  salesFacts        SalesFact[]
+  targets           Target[]
+  aggregatedSales   AggregatedSalesMonthly[]
+  mlPredictions     MLPredictionLog[]
+  personnelHistory  PersonnelHistory[]
+
+  // YENİ: Bölge Müdürü İlişkisi
+  manager           User? @relation("RegionManager")
+}
+
+model City {
+  id       String   @id @default(uuid())
+  name     String   @unique
+  regionId String
+  region   Region   @relation(fields: [regionId], references: [id])
+  stores   Store[]
+}
+
+model Store {
+  id       String   @id @default(uuid())
+  code     String?  @unique // YENİ: Mağaza Kısa Kodu (Örn: M001)
+  email    String?  @unique // YENİ: Mağazanın Giriş Maili
+  name     String   @unique
+  category String
+  isActive Boolean  @default(true)
+  cityId   String
+  city     City     @relation(fields: [cityId], references: [id])
+  regionId String
+  region   Region   @relation(fields: [regionId], references: [id])
+
+  personnelHistory PersonnelHistory[]
+  salesFacts       SalesFact[]
+  targets          Target[]
+  aggregatedSales  AggregatedSalesMonthly[]
+  mlPredictions    MLPredictionLog[]
+
+  manager          User? @relation("StoreManager")
+  
+  // YENİ: Mağaza Personel Aylık Veri İlişkisi (Performans Motoru İçin)
+  monthlyData      PersonnelMonthlyData[]
+
+  @@index([regionId])
+  @@index([cityId])
+  dailyTasks  DailyTask[]
+}
+
+// ==========================================
+// PERSONEL YÖNETİMİ (KURUMSAL MİMARİ)
+// ==========================================
+
+model JobTitle {
+  id         String      @id @default(uuid())
+  name       String      @unique // Örn: Bölge Müdürü, Mağaza Müdürü, Uzman, Usta
+  level      Int         @default(1) // Yetki seviyesi
+  personnels Personnel[]
+}
+
+model Personnel {
+  id        String   @id @default(uuid())
+  firstName String
+  lastName  String
+  
+  titleId   String
+  title     JobTitle @relation(fields: [titleId], references: [id])
+  
+  history   PersonnelHistory[]
+  
+  // Kullanıcı Hesabı İlişkisi
+  user      User?
+
+  // YENİ: PRİM VE PERFORMANS İLİŞKİSİ
+  monthlyData PersonnelMonthlyData[]
+}
+
+model PersonnelHistory {
+  id          String    @id @default(uuid())
+  personnelId String
+  personnel   Personnel @relation(fields: [personnelId], references: [id])
+  
+  // Personel ya bir mağazaya ya da bir bölgeye atanır
+  storeId     String?
+  store       Store?    @relation(fields: [storeId], references: [id])
+  
+  regionId    String?
+  region      Region?   @relation(fields: [regionId], references: [id])
+
+  startDate   DateTime
+  endDate     DateTime? // Null ise görev devam ediyor demektir
+
+  @@index([personnelId])
+  @@index([storeId])
+  @@index([regionId])
+}
+
+// ==========================================
+// AKILLI TAKVİM
+// ==========================================
+
+model CalendarDimension {
+  date           DateTime @id
+  isWeekend      Boolean
+  isPayday       Boolean
+  specialDayName String?  // Örn: Anneler Günü, Bayram, Black Friday
+  impactWeight   Float    @default(1.0) 
+
+  salesFacts    SalesFact[]
+  targets       Target[]
+  mlPredictions MLPredictionLog[]
+}
+
+// ==========================================
+// VERİ HAVUZU & ÖZET TABLOLAR
+// ==========================================
+
+model SalesFact {
+  id       String   @id @default(uuid())
+  date     DateTime
+  storeId  String
+  regionId String
+  revenue  Float
+
+  calendar CalendarDimension @relation(fields: [date], references: [date])
+  store    Store             @relation(fields: [storeId], references: [id])
+  region   Region            @relation(fields: [regionId], references: [id])
+
+  @@index([date, storeId, regionId])
+}
+
+model Target {
+  id           String   @id @default(uuid())
+  date         DateTime 
+  storeId      String
+  regionId     String
+  targetAmount Float
+
+  calendar CalendarDimension @relation(fields: [date], references: [date])
+  store    Store             @relation(fields: [storeId], references: [id])
+  region   Region            @relation(fields: [regionId], references: [id])
+
+  @@index([date, storeId, regionId])
+}
+
+model AggregatedSalesMonthly {
+  id           String   @id @default(uuid())
+  month        Int
+  year         Int
+  storeId      String
+  regionId     String
+  totalRevenue Float
+
+  store  Store  @relation(fields: [storeId], references: [id])
+  region Region @relation(fields: [regionId], references: [id])
+
+  @@unique([month, year, storeId]) 
+  @@index([year, month, regionId]) 
+}
+
+// ==========================================
+// ML & TAHMİNLEME MOTORU
+// ==========================================
+
+model MLPredictionLog {
+  id               String   @id @default(uuid())
+  targetDate       DateTime
+  storeId          String
+  regionId         String
+  predictedRevenue Float
+  actualRevenue    Float?   
+  hitRate          Float?   
+
+  calendar CalendarDimension @relation(fields: [targetDate], references: [date])
+  store    Store             @relation(fields: [storeId], references: [id])
+  region   Region            @relation(fields: [regionId], references: [id])
+
+  @@index([targetDate, storeId, regionId])
+}
+
+model ModelWeight {
+  id           String   @id @default(cuid())
+  storeId      String   @unique
+  salesWeight  Json     // Sales model ağırlıkları
+  targetWeight Json    // Target model ağırlıkları
+  lastTrained  DateTime // Incremental learning için son eğitim tarihi
+  updatedAt    DateTime @updatedAt
+}
+
+// ============================================================================
+// 💰 YENİ MODÜL: PRİM VE PERFORMANS MOTORU (DİNAMİK KURALLAR)
+// ============================================================================
+
+enum CalculationType {
+  FIXED      // Sabit Tutar (Örn: 1500 TL)
+  PERCENTAGE // Yüzdelik Çarpan (Örn: 0.015 yani %1.5)
+}
+
+// A. CİRO PRİM KURALLARI (Kategori ve Ünvana Göre Hedef Kademeleri)
+model BonusRuleRevenue {
+  id               String   @id @default(uuid())
+  storeCategory    String   // Örn: "A", "B", "C"
+  titleName        String   // Örn: "Satış Danışmanı", "Mağaza Müdürü"
+  minTargetHitRate Float    // Örn: 85.0 (Hedefin %85'i)
+  multiplier       Float    // Örn: 0.0015 (Cironun binde 1.5'i)
+  
+  @@unique([storeCategory, titleName, minTargetHitRate])
+}
+
+// B & E. MARKA VE ÖZEL ÜRÜN PRİM KURALLARI
+model BonusRuleProduct {
+  id              String          @id @default(uuid())
+  name            String          @unique // Marka veya Model Adı (Örn: "Samsung", "iPhone 15 Pro")
+  isBrand         Boolean         @default(true) // True ise Marka (B), False ise Özel Ürün (E)
+  calcType        CalculationType 
+  value           Float           // Yüzde ise 2.0 (%), Sabit ise 500 (TL)
+  isConditional   Boolean         @default(false) // B1 Kuralı: Hedef %95 altıysa yarıya düşer mi?
+}
+
+// B2. ZORUNLU SATIŞ (CEZA VE ÖDÜL) KURALLARI
+model BonusRulePenalty {
+  id              String   @id @default(uuid())
+  modelName       String   @unique // Satılması zorunlu model
+  penaltyPercent  Float    // Satılmazsa Marka Priminden kesilecek % (Örn: 10.0)
+  rewardAmount    Float    @default(0) // YENİ: Satılırsa kazanılacak ekstra prim (TL)
+  isActive        Boolean  @default(true)
+}
+
+// D. İLAVE TEŞVİK (KİLOMETRE TAŞLARI)
+model BonusRuleMilestone {
+  id               String   @id @default(uuid())
+  storeCategory    String   @default("A") // YENİ: Mağaza Kategorisi (A+, A, B...)
+  minTargetHitRate Float    // Örn: 110.0, 115.0
+  isForManager     Boolean  // True ise Mağaza Müdürü, False ise Personel için
+  rewardAmount     Float    // Sabit Prim (Örn: 1500 TL)
+  
+  @@unique([storeCategory, minTargetHitRate, isForManager])
+}
+
+// 📊 AYLIK PERSONEL SATIŞ VE KAZANÇ VERİLERİ (BORDRO)
+model PersonnelMonthlyData {
+  id              String   @id @default(uuid())
+  personnelId     String
+  storeId         String
+  month           Int
+  year            Int
+  
+  baseSalary      Float    @default(0) 
+  travelAllowance Float    @default(0) 
+  
+  ownRevenue      Float    @default(0) 
+  techServiceEarn Float    @default(0) 
+  
+  // 👇 YENİ EKLENENLER 👇
+  targetHitRate   Float    @default(0) // YENİ: Personelin o ayki hedef tutturma yüzdesi (%)
+  penaltySalesData Json?               // YENİ: Ceza ürünlerinden kaç adet sattığı { "Model A": 2, "Model B": 0 }
+  // 👆 YENİ EKLENENLER 👆
+
+  productSalesData Json?   
+  hasSoldMandatory Boolean @default(true)
+
+  calculatedRevenueBonus   Float @default(0) 
+  calculatedBrandBonus     Float @default(0) 
+  calculatedMilestoneBonus Float @default(0) 
+  calculatedSpecialBonus   Float @default(0) 
+  totalEarnings            Float @default(0) 
+
+  personnel       Personnel @relation(fields: [personnelId], references: [id])
+  store           Store     @relation(fields: [storeId], references: [id])
+
+  @@unique([personnelId, month, year])
+  @@index([storeId, month, year])
+}
+
+// UNVAN BAZLI SABİT KAZANÇLAR (Maaş ve Yol Ücreti)
+model TitleRewardSetting {
+  id              String   @id @default(uuid())
+  titleName       String   @unique // Örn: "Satış Danışmanı", "Mağaza Müdürü"
+  baseSalary      Float    @default(0) // Unvanın sabit maaşı
+  travelAllowance Float    @default(0) // Unvanın yol/yemek ücreti
+}
+model DailyTask {
+  id            String   @id @default(cuid())
+  storeId       String
+  store         Store    @relation(fields: [storeId], references: [id])
+  date          DateTime @default(now())
+  erpTotal      Float
+  cashCounts    Json     // Banknot adetlerini JSON olarak tutacağız
+  expenses      Json     // Masraf listesini JSON olarak tutacağız
+  selectedStaff String
+  shiftType     String
+  toBank        Float
+  difference    Float
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  @@index([storeId, date])
+}
