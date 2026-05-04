@@ -10,7 +10,7 @@
     "postinstall": "prisma generate"
   },
   "dependencies": {
-    "next": "15.1.0",
+    "next": "^15.1.7",
     "react": "^19.0.0",
     "react-dom": "^19.0.0",
     "next-auth": "^4.24.5",
@@ -18,14 +18,18 @@
     "@prisma/client": "^7.8.0",
     "@prisma/adapter-pg": "^7.8.0",
     "pg": "^8.11.0",
-    "lucide-react": "^0.453.0"
+    "lucide-react": "^0.453.0",
+    "bcryptjs": "^2.4.3",
+    "@tailwindcss/postcss": "^4.0.0",
+    "postcss": "^8.4.0"
   },
   "devDependencies": {
     "prisma": "^7.8.0",
     "typescript": "^5.0.0",
     "@types/node": "^20.0.0",
     "@types/react": "^19.0.0",
-    "@types/react-dom": "^19.0.0"
+    "@types/react-dom": "^19.0.0",
+    "@types/bcryptjs": "^2.4.6"
   },
   "overrides": {
     "react": "^19.0.0",
