@@ -4,7 +4,7 @@ import { PrismaClient } from "@prisma/client";
 import { Pool } from 'pg';
 import { PrismaPg } from '@prisma/adapter-pg';
 import { getServerSession } from "next-auth/next";
-import { authOptions } from "@/app/api/auth/[...nextauth]/route";
+import { authOptions } from "@/lib/auth";
 
 const connectionString = process.env.DATABASE_URL || "";
 const pool = new Pool({ connectionString });
