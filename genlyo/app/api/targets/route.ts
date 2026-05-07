@@ -65,7 +65,8 @@ export async function GET(request: Request) {
   } catch (error) { return NextResponse.json({ error: "Hata" }, { status: 500 }); }
 }
 
-// POST Metodu
+// ... (API dosyasının üstü aynı)
+
 export async function POST(request: Request) {
   try {
     const session = await getServerSession(authOptions);
@@ -74,6 +75,8 @@ export async function POST(request: Request) {
     const userRole = (session.user.role || "").toUpperCase();
     const currentUser = await prisma.user.findUnique({ where: { id: session.user.id } });
     const body = await request.json();
+    
+    let processedCount = 0;
 
     for (const item of body) {
       if (userRole === "STORE_MANAGER" && item.storeId !== currentUser?.storeId) continue;
@@ -84,7 +87,6 @@ export async function POST(request: Request) {
       const year = parseInt(item.year);
       const month = parseInt(item.month);
       
-      // 🚀 DÜZELTME: Saat 12:00:00 yapılarak saat dilimi (Timezone) kaymasının ve ay atlama hatasının önüne geçildi!
       const safeDate = new Date(Date.UTC(year, month - 1, 1, 12, 0, 0));
       const searchStart = new Date(Date.UTC(year, month - 1, 1, 0, 0, 0));
       const searchEnd = new Date(Date.UTC(year, month, 0, 23, 59, 59));
@@ -93,23 +95,22 @@ export async function POST(request: Request) {
         where: { storeId: item.storeId, date: { gte: searchStart, lte: searchEnd } }
       });
 
+      const store = await prisma.store.findUnique({ where: { id: item.storeId } });
+      if (!store) {
+          console.error(`Mağaza bulunamadı: ${item.storeId}`);
+          continue; 
+      }
+
       if (existing) {
         await prisma.target.update({ where: { id: existing.id }, data: { targetAmount: val, date: safeDate } });
       } else {
-        const store = await prisma.store.findUnique({ where: { id: item.storeId } });
-        if (!store) continue;
-        
         await prisma.target.create({ 
-            data: { 
-              storeId: item.storeId, 
-              regionId: store.regionId, 
-              date: safeDate, 
-              targetAmount: val 
-            } 
+            data: { storeId: item.storeId, regionId: store.regionId, date: safeDate, targetAmount: val } 
         });
       }
+      processedCount++;
     }
-    return NextResponse.json({ success: true });
+    return NextResponse.json({ success: true, processed: processedCount });
   } catch (error: any) { 
       return NextResponse.json({ error: error.message }, { status: 500 }); 
   }
