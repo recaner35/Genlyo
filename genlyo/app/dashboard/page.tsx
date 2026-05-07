@@ -16,12 +16,10 @@ export default function DashboardHomePage() {
       m1CurrSales: 0, m2CurrSales: 0, hybridCurrSales: 0, currTarget: 0,
       m1Sales: 0, m2Sales: 0, hybridSales: 0, 
       m1Target: 0, m2Target: 0, hybridTarget: 0,
-      // 🚀 YENİ: Gerçekleşen satışı tutmak için state
       hybridRealizedSales: 0 
   });
   const [loading, setLoading] = useState(true);
 
-  // 🚀 YENİ: Hızlı Ciro Girişi için State'ler
   const [quickRevenue, setQuickRevenue] = useState("");
   const [isSavingQuick, setIsSavingQuick] = useState(false);
 
@@ -51,7 +49,7 @@ export default function DashboardHomePage() {
   useEffect(() => {
     if (session) {
       fetchHybridData();
-      fetchRealizedSales(); // 🚀 YENİ: Gerçekleşen ciroyu çek
+      fetchRealizedSales();
     }
   }, [level, filterId, session]);
 
@@ -61,7 +59,6 @@ export default function DashboardHomePage() {
       const res = await fetch(`/api/dashboard/hybrid?level=${level}&filterId=${filterId}`);
       if (res.ok) {
         const result = await res.json();
-        // data state'ini mevcut realized sales değerini kaybetmeden güncelle
         setData(prev => ({ ...prev, ...result }));
       }
     } catch (err) {} finally {
@@ -69,30 +66,43 @@ export default function DashboardHomePage() {
     }
   };
 
-  // 🚀 YENİ: Gerçekleşen (Bugüne Kadar Kesinleşen) Ciroyu API'den Çekme
   const fetchRealizedSales = async () => {
     try {
-       // Satış matrix'indeki mantığı kullanarak o ayın toplamını buluyoruz
-       const res = await fetch(`/api/sales?year=${currentYear}&month=${currentMonth}`);
+       // 🚀 DÜZELTME 1: Cache (önbellek) sorunu yaşamamak için zaman damgası ekledik.
+       const res = await fetch(`/api/sales?year=${currentYear}&month=${currentMonth}&_t=${Date.now()}`, {
+           cache: 'no-store',
+           headers: { 'Cache-Control': 'no-cache', 'Pragma': 'no-cache' }
+       });
+       
        if (res.ok) {
           const result = await res.json();
           const salesArray = Array.isArray(result?.sales) ? result.sales : [];
           
           let total = 0;
+          
+          // 🚀 DÜZELTME 2: Seçili filtreye veya genel toplama göre kümülatif ciroyu hatasız hesapla
           if (level === "STORE" && filterId !== "ALL") {
-              total = salesArray.filter((s:any) => s.storeId === filterId).reduce((acc: number, curr: any) => acc + curr.revenue, 0);
-          } else if (level === "STORE" && filterId === "ALL") {
-              // Sadece yetkisi olan mağazaların toplamı (API zaten filtreli gönderiyor)
-              total = salesArray.reduce((acc: number, curr: any) => acc + curr.revenue, 0);
+              // Tek bir mağaza seçiliyse, sadece o mağazanın satışlarını topla
+              total = salesArray
+                  .filter((s:any) => s.storeId === filterId)
+                  .reduce((acc: number, curr: any) => acc + Number(curr.revenue || 0), 0);
+          } else if (level === "REGION" && filterId !== "ALL") {
+              // Tek bir bölge seçiliyse, o bölgeye ait mağazaların satışlarını topla
+              total = salesArray
+                  .filter((s:any) => s.regionId === filterId)
+                  .reduce((acc: number, curr: any) => acc + Number(curr.revenue || 0), 0);
+          } else {
+              // "ALL" seçiliyse (veya Genel seçiliyse), API'den gelen (zaten yetkiye göre filtrelenmiş) tüm satışları topla
+              total = salesArray.reduce((acc: number, curr: any) => acc + Number(curr.revenue || 0), 0);
           }
-          // Region veya Total mantığı eklenmek istenirse burası genişletilebilir
           
           setData(prev => ({ ...prev, hybridRealizedSales: total }));
        }
-    } catch (err) { console.error("Gerçekleşen satış çekilemedi:", err); }
+    } catch (err) { 
+        console.error("Gerçekleşen satış çekilemedi:", err); 
+    }
   };
 
-  // 🚀 YENİ: Hızlı Ciro Kaydetme Fonksiyonu
   const handleQuickSave = async () => {
     if (!quickRevenue || isNaN(parseFloat(quickRevenue.replace(/\./g, '').replace(',', '.')))) {
       alert("Lütfen geçerli bir tutar girin.");
@@ -111,7 +121,7 @@ export default function DashboardHomePage() {
       storeId: filterId,
       year: currentYear,
       month: currentMonth,
-      day: currentDay, // O günün tarihine atar
+      day: currentDay, 
       revenue: cleanRevenue
     }];
 
@@ -125,7 +135,8 @@ export default function DashboardHomePage() {
       if (res.ok) {
         setQuickRevenue("");
         alert("✅ Bugünün cirosu başarıyla kaydedildi!");
-        fetchRealizedSales(); // Ciroyu kaydettikten sonra ekranı anında güncelle
+        // 🚀 DÜZELTME 3: Kayıttan sonra yeni değeri almak için fonksiyonu tekrar çağırıyoruz
+        fetchRealizedSales(); 
       } else {
         alert("❌ Kayıt sırasında bir hata oluştu.");
       }
@@ -145,7 +156,6 @@ export default function DashboardHomePage() {
   const formatMoney = (val: number) => new Intl.NumberFormat('tr-TR', { style: 'currency', currency: 'TRY', minimumFractionDigits: 0, maximumFractionDigits: 0 }).format(Math.round(val || 0));
 
   const closingPercentage = data.currTarget > 0 ? (data.hybridCurrSales / data.currTarget) * 100 : 0;
-  // 🚀 YENİ: Hedefe Giden Yolda Gerçekleşen Başarı Yüzdesi
   const realizedPercentage = data.currTarget > 0 ? (data.hybridRealizedSales / data.currTarget) * 100 : 0;
 
   return (
