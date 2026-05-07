@@ -94,18 +94,33 @@ export default function TargetsPage() {
 
   const handleSaveTargets = async () => {
     setIsSaving(true);
+    
     const payload = Object.entries(entryData)
       .filter(([_, amount]) => amount !== "" && amount !== null && amount !== undefined)
       .map(([key, amount]) => {
-        const [storeId, month] = key.split('-');
+        // 🚀 KRİTİK DÜZELTME: UUID içindeki tireleri bozmadan sadece sondaki ayı ayırıyoruz.
+        const parts = key.split('-');
+        const month = parts.pop(); // En sondaki parça (ay)
+        const storeId = parts.join('-'); // Geri kalan her şey (mağaza UUID'si)
+        
         return { storeId, month, year: selectedYear, amount };
       });
     
+    if (payload.length === 0) {
+        alert("⚠️ Kaydedilecek yeni bir veri bulunamadı.");
+        setIsSaving(false);
+        return;
+    }
+
     try {
-        const res = await fetch('/api/targets', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) });
+        const res = await fetch('/api/targets', { 
+            method: 'POST', 
+            headers: { 'Content-Type': 'application/json' }, 
+            body: JSON.stringify(payload) 
+        });
+        
         if (res.ok) { 
             setViewMode("VIEW"); 
-            // 🚀 DÜZELTME 3: Kayıt sonrası "Tüm Yıl" görünümüne geç ki kullanıcı kaydettiği veriyi anında görebilsin.
             setSelectedMonth("ALL");
             fetchData(); 
             alert("✅ Hedefler başarıyla kaydedildi!");
