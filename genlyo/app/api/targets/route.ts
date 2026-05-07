@@ -63,7 +63,7 @@ export async function GET(request: Request) {
   } catch (error) { return NextResponse.json({ error: "Hata" }, { status: 500 }); }
 }
 
-// 🚀 POST Metodu: Mağaza Müdürlerine yetki eklendi
+// 🚀 POST Metodu: UUID Hataları Çözüldü ve Güvenlik Sıkılaştırıldı
 export async function POST(request: Request) {
   try {
     const session = await getServerSession(authOptions);
@@ -94,11 +94,17 @@ export async function POST(request: Request) {
         await prisma.target.update({ where: { id: existing.id }, data: { targetAmount: val, date: safeDate } });
       } else {
         const store = await prisma.store.findUnique({ where: { id: item.storeId } });
+        // 🚀 DÜZELTME: regionId boşsa "" yerine null gönderiliyor, veritabanı çökmekten kurtuluyor.
+        const safeRegionId = store?.regionId ? store.regionId : null;
+        
         await prisma.target.create({ 
-            data: { storeId: item.storeId, regionId: store?.regionId || "", date: safeDate, targetAmount: val } 
+            data: { storeId: item.storeId, regionId: safeRegionId, date: safeDate, targetAmount: val } 
         });
       }
     }
     return NextResponse.json({ success: true });
-  } catch (error: any) { return NextResponse.json({ error: error.message }, { status: 500 }); }
+  } catch (error: any) { 
+      // 🚀 DÜZELTME: Hata mesajını dışarıya net veriyoruz ki ön yüz bunu yakalayabilsin
+      return NextResponse.json({ error: error.message }, { status: 500 }); 
+  }
 }

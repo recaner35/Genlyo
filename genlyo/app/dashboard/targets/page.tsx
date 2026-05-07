@@ -10,17 +10,18 @@ const MONTHS = [
   { id: 10, name: "Ekim" }, { id: 11, name: "Kasım" }, { id: 12, name: "Aralık" }
 ];
 
-// 🚀 ADMİNDEN DEĞİŞTİRİLEBİLECEK PRİM EŞİKLERİ (Şimdilik sabit, ileride DB'den gelecek)
 const PRIM_THRESHOLDS = [0.85, 0.95, 1.0, 1.1, 1.2];
 
 export default function TargetsPage() {
   const { data: session } = useSession();
-  const userRole = session?.user?.role || "STORE_MANAGER";
+  const userRole = (session?.user as any)?.role || "STORE_MANAGER";
+  
+  // 🚀 DÜZELTME: Artık sadece Admin değil, Mağaza ve Bölge müdürleri de butonları görebilir.
+  const canEditTargets = userRole === "ADMIN" || userRole === "STORE_MANAGER" || userRole === "REGION_MANAGER";
   const isAdmin = userRole === "ADMIN";
 
   const currentYear = new Date().getFullYear();
   const currentMonth = new Date().getMonth() + 1;
-  const todayDate = new Date();
 
   const [viewMode, setViewMode] = useState<"VIEW" | "ENTRY">("VIEW");
   const [targets, setTargets] = useState<any[]>([]);
@@ -57,13 +58,18 @@ export default function TargetsPage() {
       const targetsArray = Array.isArray(tData) ? tData : [];
       setTargets(targetsArray);
       
+      // 🚀 DÜZELTME: Mağazaların listesi, kişinin rolüne göre doğru şekilde ayarlanıyor.
+      const storesList = Array.isArray(sData) ? sData : (sData.store ? [sData.store] : []);
       if (isAdmin) {
-         setStores(Array.isArray(sData) ? sData : (sData.store ? [sData.store] : []));
-      } else {
-         const uniqueStores = Array.from(new Set(targetsArray.map(t => t.store?.id)))
-                                   .map(id => targetsArray.find(t => t.store?.id === id)?.store)
-                                   .filter(Boolean);
-         setStores(uniqueStores as any[]);
+          setStores(storesList);
+      } else if (userRole === "STORE_MANAGER") {
+          const myStoreId = (session?.user as any)?.storeId;
+          const myStore = storesList.find((s: any) => s.id === myStoreId);
+          setStores(myStore ? [myStore] : []);
+      } else if (userRole === "REGION_MANAGER") {
+          const myRegionId = (session?.user as any)?.regionId;
+          const myStores = storesList.filter((s: any) => s.regionId === myRegionId);
+          setStores(myStores);
       }
 
       const initialEntryData: any = {};
@@ -88,14 +94,29 @@ export default function TargetsPage() {
     } catch (err) { console.error(err); } finally { setLoadingMotor(false); }
   };
 
+  // 🚀 DÜZELTME: Sessiz hata engellendi. Kayıt durumunda kullanıcıya bilgi veriliyor.
   const handleSaveTargets = async () => {
     setIsSaving(true);
-    const payload = Object.entries(entryData).map(([key, amount]) => {
-      const [storeId, month] = key.split('-');
-      return { storeId, month, year: selectedYear, amount };
-    });
-    const res = await fetch('/api/targets', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) });
-    if (res.ok) { setViewMode("VIEW"); fetchData(); }
+    const payload = Object.entries(entryData)
+      .filter(([_, amount]) => amount !== "" && amount !== null && amount !== undefined)
+      .map(([key, amount]) => {
+        const [storeId, month] = key.split('-');
+        return { storeId, month, year: selectedYear, amount };
+      });
+    
+    try {
+        const res = await fetch('/api/targets', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) });
+        if (res.ok) { 
+            setViewMode("VIEW"); 
+            fetchData(); 
+            alert("✅ Hedefler başarıyla kaydedildi!");
+        } else {
+            const errorData = await res.json();
+            alert(`❌ Kaydedilirken Hata Oluştu:\n${errorData.error}`);
+        }
+    } catch(err) {
+        alert("❌ Sunucuya bağlanırken bir hata oluştu!");
+    }
     setIsSaving(false);
   };
 
@@ -109,17 +130,12 @@ export default function TargetsPage() {
     return result;
   }, [targets, selectedMonth, storeSearch]);
 
-  // 🚀 YENİ: KALAN GÜNLÜK HEDEF HESAPLAMA MOTORU
   const dailyRemainingStats = useMemo(() => {
     if (!motorData || !motorData.daily) return [];
     
-    // Toplam Hedef (T)
     const T = motorData.summary?.currentMonthTarget || 0;
-    
-    // Bugüne kadar gerçekleşen ciro (S_mtd)
     const S_mtd = motorData.daily.reduce((acc: number, curr: any) => acc + (curr.actualRevenue || 0), 0);
     
-    // Ayın kalan gün sayısı (Bugün dahil edilmezse yanlış olur, bugün dahil kalan günler)
     const totalDaysInMonth = new Date(selectedYear, Number(selectedMonth), 0).getDate();
     const passedDays = motorData.daily.filter((d: any) => d.actualRevenue > 0).length;
     const remainingDays = Math.max(1, totalDaysInMonth - passedDays);
@@ -156,7 +172,8 @@ export default function TargetsPage() {
             Günlük Satış, Motor 2 Tahminleri ve Prim Eşikleri
           </p>
         </div>
-        {isAdmin && (
+        {/* 🚀 DÜZELTME: Buton görünürlüğü canEditTargets değişkenine bağlandı */}
+        {canEditTargets && (
             <button onClick={() => setViewMode(viewMode === "VIEW" ? "ENTRY" : "VIEW")} className={`px-8 py-3.5 rounded-2xl font-black transition-all shadow-lg ${viewMode === "ENTRY" ? 'bg-slate-900 text-white' : 'bg-white border border-slate-200 text-slate-700 hover:border-indigo-500'}`}>
               {viewMode === "VIEW" ? "⚙️ Hedef Tanımla" : "📊 Analize Dön"}
             </button>
@@ -179,7 +196,7 @@ export default function TargetsPage() {
           
           {selectedMonth !== "ALL" && motorData && (
             <>
-              {/* 🚀 ÜST PANEL: PRIM EŞİKLERİ VE KALAN GÜNLÜK İHTİYAÇ */}
+              {/* ÜST PANEL: PRIM EŞİKLERİ VE KALAN GÜNLÜK İHTİYAÇ */}
               <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
                  {dailyRemainingStats.map((stat, i) => (
                     <div key={i} className={`p-5 rounded-3xl border transition-all ${stat.isReached ? 'bg-emerald-600 border-emerald-500 text-white shadow-emerald-100 shadow-xl' : 'bg-white border-slate-200 shadow-sm'}`}>
@@ -283,7 +300,7 @@ export default function TargetsPage() {
             </>
           )}
 
-          {/* YILLIK GENEL LİSTE (Alt kısımda kalmaya devam edebilir veya gizlenebilir) */}
+          {/* YILLIK GENEL LİSTE */}
           {selectedMonth === "ALL" && (
              <div className="bg-white rounded-[2.5rem] shadow-sm border border-slate-200 overflow-hidden">
                 <table className="w-full text-left">
@@ -312,7 +329,7 @@ export default function TargetsPage() {
           )}
         </div>
       ) : (
-        /* ADMİN HEDEF GİRİŞİ - AYNI KALIYOR */
+        /* ADMİN & MAĞAZA HEDEF GİRİŞİ */
         <div className="bg-white rounded-[2.5rem] shadow-2xl border border-slate-200 overflow-hidden">
             <div className="p-10 border-b flex justify-between items-center bg-slate-50/50">
                 <h2 className="text-2xl font-black italic">Bütçe <span className="text-indigo-600">Planlama</span></h2>
