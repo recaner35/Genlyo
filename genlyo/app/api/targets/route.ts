@@ -15,7 +15,7 @@ const pool = new Pool({ connectionString });
 const adapter = new PrismaPg(pool);
 const prisma = new PrismaClient({ adapter });
 
-// GET Metodu
+// GET Metodu (Aynı kalıyor)
 export async function GET(request: Request) {
   try {
     const { searchParams } = new URL(request.url);
@@ -65,8 +65,7 @@ export async function GET(request: Request) {
   } catch (error) { return NextResponse.json({ error: "Hata" }, { status: 500 }); }
 }
 
-// ... (API dosyasının üstü aynı)
-
+// POST Metodu
 export async function POST(request: Request) {
   try {
     const session = await getServerSession(authOptions);
@@ -87,7 +86,8 @@ export async function POST(request: Request) {
       const year = parseInt(item.year);
       const month = parseInt(item.month);
       
-      const safeDate = new Date(Date.UTC(year, month - 1, 1, 12, 0, 0));
+      // 🚀 KRİTİK DÜZELTME: Takvim tablosuyla (CalendarDimension) eşleşmesi için saati tekrar gece yarısına (00:00:00) çektik.
+      const safeDate = new Date(Date.UTC(year, month - 1, 1, 0, 0, 0));
       const searchStart = new Date(Date.UTC(year, month - 1, 1, 0, 0, 0));
       const searchEnd = new Date(Date.UTC(year, month, 0, 23, 59, 59));
 
