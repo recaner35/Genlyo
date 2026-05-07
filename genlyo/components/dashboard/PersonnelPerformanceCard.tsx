@@ -25,13 +25,18 @@ export default function PersonnelPerformanceCard({
     };
 
     const generatedReportText = useMemo(() => {
-        let text = `${selectedStoreName}\nHG: ${realizedPercentage.toLocaleString('tr-TR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}\nCiro: ${Math.round(hybridRealizedSales).toLocaleString('tr-TR')}\n`;
-        personnelSales.forEach(p => {
-            const ratio = hybridRealizedSales > 0 ? (p.ownRevenue / hybridRealizedSales) * 100 : 0;
-            text += `${getAbbreviation(p.personnel?.title?.name)} ${p.personnel?.firstName}: ${ratio.toLocaleString('tr-TR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}\n`;
-        });
-        return text.trim();
-    }, [selectedStoreName, realizedPercentage, hybridRealizedSales, personnelSales]);
+    let text = `${selectedStoreName}\nHG: ${realizedPercentage.toLocaleString('tr-TR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}\nCiro: ${Math.round(hybridRealizedSales).toLocaleString('tr-TR')}\n`;
+    
+    personnelSales.forEach(p => {
+        // Veri yapısı artık düz olduğu için direkt p.ownRevenue ve p.firstName kullanıyoruz
+        const ratio = hybridRealizedSales > 0 ? (p.ownRevenue / hybridRealizedSales) * 100 : 0;
+        const name = p.personnel?.firstName || p.firstName; // Her iki duruma karşı koruma
+        const title = p.personnel?.title?.name || p.title?.name;
+        
+        text += `${getAbbreviation(title)} ${name}: ${ratio.toLocaleString('tr-TR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}\n`;
+    });
+    return text.trim();
+}, [selectedStoreName, realizedPercentage, hybridRealizedSales, personnelSales]);
 
     // QR Kod URL'si (iOS/Android Uyumlu)
     const qrCodeUrl = `https://api.qrserver.com/v1/create-qr-code/?size=300x300&data=${encodeURIComponent(generatedReportText)}`;

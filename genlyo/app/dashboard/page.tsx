@@ -43,20 +43,33 @@ export default function DashboardHomePage() {
 
   const [personnelSales, setPersonnelSales] = useState<any[]>([]);
 
-  // fetchRealizedSales() fonksiyonunun hemen altına bu yeni fonksiyonu ekle
+// 🚀 DÜZELTME: Veriyi asıl performans API'sinden çekiyoruz
   const fetchPersonnelSales = async () => {
       const targetStoreId = isStoreManager ? (myStoreId || filterId) : filterId;
       if (!targetStoreId || targetStoreId === "ALL") { setPersonnelSales([]); return; }
+      
       try {
-          const res = await fetch(`/api/personnel/monthly-data?year=${currentYear}&month=${currentMonth}&storeId=${targetStoreId}`);
+          // Senin performans API'n: store-performance
+          const res = await fetch(`/api/store-performance?storeId=${targetStoreId}&month=${currentMonth}&year=${currentYear}`);
           if (res.ok) {
               const result = await res.json();
-              const filtered = (result.data || [])
-                  .filter((p: any) => p.personnel?.title?.name !== "Mağaza Müdürü")
-                  .sort((a: any, b: any) => b.ownRevenue - a.ownRevenue);
-              setPersonnelSales(filtered);
+              
+              // Verileri kartın anlayacağı formata (personnel ve monthlyData birleşimi) getiriyoruz
+              const combinedData = result.personnels.map((p: any) => {
+                  const mData = result.monthlyData.find((md: any) => md.personnelId === p.id);
+                  return {
+                      ...p,
+                      personnel: p, // Kartın içindeki p.personnel erişimi için
+                      ownRevenue: mData?.ownRevenue || 0
+                  };
+              })
+              // Mağaza Müdürü hariç olanları filtrele ve ciroya göre diz
+              .filter((p: any) => !p.title?.name?.toLowerCase().includes("müdür"))
+              .sort((a: any, b: any) => b.ownRevenue - a.ownRevenue);
+
+              setPersonnelSales(combinedData);
           }
-      } catch (err) { console.error(err); }
+      } catch (err) { console.error("Personel verisi çekilemedi:", err); }
   };
 
   useEffect(() => {
