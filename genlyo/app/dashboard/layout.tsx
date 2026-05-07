@@ -5,12 +5,13 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { signOut, useSession } from "next-auth/react";
 
-// 🚀 DÜZELTME 1: Tüm sayfaları ve görebilecek rolleri (yetkileri) buraya ekledik
+// 🚀 YENİ: "Günlük Kasa Raporu" (daily-tasks) eklendi
 const MENU_ITEMS = [
   { name: "Ana Sayfa", path: "/dashboard", icon: "📊", roles: ["ADMIN", "REGION_MANAGER", "STORE_MANAGER"] },
   { name: "Kanal Yönetimi", path: "/dashboard/channels", icon: "🏢", roles: ["ADMIN"] },
   { name: "Bölge Yönetimi", path: "/dashboard/regions", icon: "🗺️", roles: ["ADMIN"] },
   { name: "Mağaza Yönetimi", path: "/dashboard/stores", icon: "🏪", roles: ["ADMIN", "REGION_MANAGER"] },
+  { name: "Günlük Kasa Raporu", path: "/dashboard/daily-tasks", icon: "💵", roles: ["ADMIN", "REGION_MANAGER", "STORE_MANAGER"] },
   { name: "Personel Yönetimi", path: "/dashboard/personnel", icon: "👥", roles: ["ADMIN", "REGION_MANAGER", "STORE_MANAGER"] },
   { name: "Prim Kuralları", path: "/dashboard/bonus-rules", icon: "⚙️", roles: ["ADMIN"] }, 
   { name: "Hedef Yönetimi", path: "/dashboard/targets", icon: "🎯", roles: ["ADMIN", "REGION_MANAGER", "STORE_MANAGER"] },
@@ -33,7 +34,6 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
 
   if (!mounted) return null;
 
-  // 🚀 DÜZELTME 2: Sistemdeki kullanıcının rolünü alıp sadece ona ait menüleri filtreliyoruz
   const safeUserRole = (session?.user?.role || "").toUpperCase();
   const filteredMenu = MENU_ITEMS.filter(item => 
     item.roles.some(r => r.toUpperCase() === safeUserRole)
@@ -106,7 +106,6 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
 
         {/* MENÜ LİNKLERİ */}
         <nav className={`flex-1 overflow-y-auto scrollbar-none space-y-2 ${isDesktopCollapsed ? 'p-3' : 'p-4'}`}>
-          {/* 🚀 DÜZELTME 3: Sadece filtrelenmiş (yetkili olunan) menüleri ekrana çiz */}
           {filteredMenu.map((item) => {
             const isActive = pathname === item.path || (item.path !== "/dashboard" && pathname.startsWith(item.path));
             return (
