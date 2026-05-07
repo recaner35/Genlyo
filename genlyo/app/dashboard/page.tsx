@@ -201,9 +201,10 @@ export default function DashboardHomePage() {
   const closingPercentage = data.currTarget > 0 ? (data.hybridCurrSales / data.currTarget) * 100 : 0;
   const realizedPercentage = data.currTarget > 0 ? (data.hybridRealizedSales / data.currTarget) * 100 : 0;
 
-  // 🚀 YENİ: Mailto Linki Dinamik Hazırlama
   const mailSubject = encodeURIComponent(`[${todayString}] Tarihli Günleme Hk.`);
-  const mailBody = encodeURIComponent(`Merhaba;\n${todayString} tarihli ciromuz ${quickRevenue || "0"} TL'dir.\nİyi çalışmalar.`);
+  const formattedRevenue = Number(quickRevenue || 0).toLocaleString('tr-TR', { maximumFractionDigits: 0 });
+  const mailBody = encodeURIComponent(`Merhaba;\n${todayString} tarihli ciromuz ${formattedRevenue} TL'dir.\nİyi çalışmalar.`);
+  const owaLink = `https://mail.saatvesaat.com/owa/#path=/mail/action/compose&to=${encodeURIComponent(reportEmail)}&subject=${mailSubject}&body=${mailBody}`;
 
   return (
     <div className="p-4 md:p-8 bg-slate-50 min-h-screen font-sans text-slate-900">
@@ -374,7 +375,7 @@ export default function DashboardHomePage() {
             <div className="bg-white rounded-3xl p-8 border border-slate-200 shadow-xl flex flex-col justify-between">
                 <div>
                   <h3 className="text-xl font-black text-slate-800 mb-2">Gün Sonu Bildirimi</h3>
-                  <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-6">Tek Tıkla Mail Gönderimi</p>
+                  <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-6">OWA Mail Gönderimi</p>
                   
                   <div className="flex flex-col gap-4">
                       {level === "STORE" && filterId !== "ALL" ? (
@@ -396,11 +397,13 @@ export default function DashboardHomePage() {
                              </div>
 
                              <a 
-                                href={reportEmail ? `mailto:${reportEmail}?subject=${mailSubject}&body=${mailBody}` : '#'}
+                                href={reportEmail ? owaLink : '#'}
+                                target="_blank" // YENİ: Webmail'in yeni sekmede açılması için
+                                rel="noopener noreferrer"
                                 onClick={(e) => { if(!reportEmail) { e.preventDefault(); alert('Lütfen önce bir mail adresi kaydedin.'); } }}
                                 className={`w-full text-white px-6 py-4 rounded-xl font-black shadow-lg transition-all uppercase tracking-widest text-sm text-center flex items-center justify-center gap-2 ${reportEmail ? 'bg-blue-600 hover:bg-blue-500 shadow-blue-200' : 'bg-slate-300 cursor-not-allowed'}`}
                              >
-                                <span>✉️ MAİL UYGULAMASINI AÇ</span>
+                                <span>✉️ MAİL GÖNDER</span>
                              </a>
                           </>
                       ) : (
