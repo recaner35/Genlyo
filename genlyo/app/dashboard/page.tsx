@@ -11,6 +11,9 @@ export default function DashboardHomePage() {
   const [filterId, setFilterId] = useState("ALL");
   const [stores, setStores] = useState<any[]>([]);
   
+  // 🚀 DÜZELTME 1: Mağaza müdürünün API'den gelen GERÇEK ID'sini tutmak için yeni state
+  const [myStoreId, setMyStoreId] = useState<string | null>(null);
+
   const [data, setData] = useState({ 
       currMonthName: "...", nextMonthName: "...",
       m1CurrSales: 0, m2CurrSales: 0, hybridCurrSales: 0, currTarget: 0,
@@ -68,39 +71,35 @@ export default function DashboardHomePage() {
 
   const fetchRealizedSales = async () => {
     try {
-       // 🚀 DÜZELTME 1: Cache (önbellek) sorunu yaşamamak için zaman damgası ekledik.
+       // Tarayıcıyı kandırmak ve en güncel veriyi almak için Date.now() ekliyoruz
        const res = await fetch(`/api/sales?year=${currentYear}&month=${currentMonth}&_t=${Date.now()}`, {
-           cache: 'no-store',
-           headers: { 'Cache-Control': 'no-cache', 'Pragma': 'no-cache' }
+           cache: 'no-store'
        });
-       
+
        if (res.ok) {
           const result = await res.json();
           const salesArray = Array.isArray(result?.sales) ? result.sales : [];
           
+          // Arka planın sana "Senin gerçek mağaza ID'n bu" dediği değeri kaydediyoruz
+          if (result.allowedStoreId) {
+              setMyStoreId(result.allowedStoreId);
+          }
+
           let total = 0;
           
-          // 🚀 DÜZELTME 2: Seçili filtreye veya genel toplama göre kümülatif ciroyu hatasız hesapla
-          if (level === "STORE" && filterId !== "ALL") {
-              // Tek bir mağaza seçiliyse, sadece o mağazanın satışlarını topla
-              total = salesArray
-                  .filter((s:any) => s.storeId === filterId)
-                  .reduce((acc: number, curr: any) => acc + Number(curr.revenue || 0), 0);
-          } else if (level === "REGION" && filterId !== "ALL") {
-              // Tek bir bölge seçiliyse, o bölgeye ait mağazaların satışlarını topla
-              total = salesArray
-                  .filter((s:any) => s.regionId === filterId)
-                  .reduce((acc: number, curr: any) => acc + Number(curr.revenue || 0), 0);
-          } else {
-              // "ALL" seçiliyse (veya Genel seçiliyse), API'den gelen (zaten yetkiye göre filtrelenmiş) tüm satışları topla
-              total = salesArray.reduce((acc: number, curr: any) => acc + Number(curr.revenue || 0), 0);
+          // 🚀 DÜZELTME 2: Göz yanılmasını engelliyoruz! 
+          // Eğer mağaza müdürü isen filtre listesine aldırış etmeden doğrudan tüm satışlarını (zaten sadece seninkiler geliyor) topluyoruz.
+          if (isStoreManager || filterId === "ALL") {
+              total = salesArray.reduce((acc: number, curr: any) => acc + Number(curr.revenue), 0);
+          } else if (level === "STORE") {
+              total = salesArray.filter((s:any) => s.storeId === filterId).reduce((acc: number, curr: any) => acc + Number(curr.revenue), 0);
+          } else if (level === "REGION") {
+              total = salesArray.filter((s:any) => s.regionId === filterId).reduce((acc: number, curr: any) => acc + Number(curr.revenue), 0);
           }
           
           setData(prev => ({ ...prev, hybridRealizedSales: total }));
        }
-    } catch (err) { 
-        console.error("Gerçekleşen satış çekilemedi:", err); 
-    }
+    } catch (err) { console.error("Gerçekleşen satış çekilemedi:", err); }
   };
 
   const handleQuickSave = async () => {
@@ -109,7 +108,11 @@ export default function DashboardHomePage() {
       return;
     }
 
-    if (level !== "STORE" || filterId === "ALL") {
+    // 🚀 DÜZELTME 3: Yanlış mağazaya kaydetmeyi engelliyoruz!
+    // Eğer Mağaza Müdürü isen, filtredeki yanlış ID'yi ezip gerçek ID'ni gönderiyoruz.
+    const targetStoreId = isStoreManager ? (myStoreId || filterId) : filterId;
+
+    if (!targetStoreId || targetStoreId === "ALL") {
       alert("Hızlı ciro girişi yapmak için yukarıdan tek bir mağaza seçmelisiniz.");
       return;
     }
@@ -118,10 +121,10 @@ export default function DashboardHomePage() {
     const cleanRevenue = parseFloat(quickRevenue.replace(/\./g, '').replace(',', '.'));
 
     const payload = [{
-      storeId: filterId,
+      storeId: targetStoreId, 
       year: currentYear,
       month: currentMonth,
-      day: currentDay, 
+      day: currentDay,
       revenue: cleanRevenue
     }];
 
@@ -132,13 +135,14 @@ export default function DashboardHomePage() {
         body: JSON.stringify(payload)
       });
       
-      if (res.ok) {
+      const resData = await res.json();
+
+      if (res.ok && resData.count > 0) {
         setQuickRevenue("");
         alert("✅ Bugünün cirosu başarıyla kaydedildi!");
-        // 🚀 DÜZELTME 3: Kayıttan sonra yeni değeri almak için fonksiyonu tekrar çağırıyoruz
-        fetchRealizedSales(); 
+        fetchRealizedSales(); // Ciro barını anında yenile
       } else {
-        alert("❌ Kayıt sırasında bir hata oluştu.");
+        alert("❌ Kaydedilemedi! Veritabanında eşleşen Mağaza bulunamadı.");
       }
     } catch (err) {
       alert("❌ Bağlantı hatası.");
