@@ -6,7 +6,6 @@ import { PrismaPg } from '@prisma/adapter-pg';
 import { getServerSession } from "next-auth/next";
 import { authOptions } from "@/lib/auth";
 
-// 🚀 DÜZELTME: Next.js ve Vercel'in bu API'yi önbelleğe (cache) almasını tamamen yasaklıyoruz.
 export const dynamic = 'force-dynamic';
 export const revalidate = 0;
 export const fetchCache = 'force-no-store';
@@ -84,8 +83,9 @@ export async function POST(request: Request) {
       
       const year = parseInt(item.year);
       const month = parseInt(item.month);
-      // 🚀 DÜZELTME: Veritabanı saatini standart gece yarısı UTC'sine ayarladık.
-      const safeDate = new Date(Date.UTC(year, month - 1, 1, 0, 0, 0));
+      
+      // 🚀 DÜZELTME: Saat 12:00:00 yapılarak saat dilimi (Timezone) kaymasının ve ay atlama hatasının önüne geçildi!
+      const safeDate = new Date(Date.UTC(year, month - 1, 1, 12, 0, 0));
       const searchStart = new Date(Date.UTC(year, month - 1, 1, 0, 0, 0));
       const searchEnd = new Date(Date.UTC(year, month, 0, 23, 59, 59));
 
