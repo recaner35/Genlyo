@@ -63,7 +63,7 @@ export async function GET(request: Request) {
   } catch (error) { return NextResponse.json({ error: "Hata" }, { status: 500 }); }
 }
 
-// 🚀 POST Metodu: UUID Hataları Çözüldü ve TypeScript (undefined) Uyumu Sağlandı
+// 🚀 POST Metodu: UUID Hataları Çözüldü ve TypeScript (Zorunlu Alan) Uyumu Sağlandı
 export async function POST(request: Request) {
   try {
     const session = await getServerSession(authOptions);
@@ -93,11 +93,18 @@ export async function POST(request: Request) {
         await prisma.target.update({ where: { id: existing.id }, data: { targetAmount: val, date: safeDate } });
       } else {
         const store = await prisma.store.findUnique({ where: { id: item.storeId } });
-        // 🚀 DÜZELTME: null yerine TypeScript'in beklediği undefined kelimesi kullanıldı
-        const safeRegionId = store?.regionId ? store.regionId : undefined;
+        
+        // 🚀 DÜZELTME: Prisma şemasına göre regionId ZORUNLU (String). 
+        // Eğer mağaza veritabanında yoksa, hedefi de oluşturamayız (continue ile atla).
+        if (!store) continue;
         
         await prisma.target.create({ 
-            data: { storeId: item.storeId, regionId: safeRegionId, date: safeDate, targetAmount: val } 
+            data: { 
+              storeId: item.storeId, 
+              regionId: store.regionId, // 🚀 Mağaza varsa regionId kesinlikle string olarak gelecektir.
+              date: safeDate, 
+              targetAmount: val 
+            } 
         });
       }
     }
