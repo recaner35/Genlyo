@@ -197,13 +197,18 @@ export default function DashboardHomePage() {
   }, [stores]);
 
   const formatMoney = (val: number) => new Intl.NumberFormat('tr-TR', { style: 'currency', currency: 'TRY', minimumFractionDigits: 0, maximumFractionDigits: 0 }).format(Math.round(val || 0));
-
+  
   const closingPercentage = data.currTarget > 0 ? (data.hybridCurrSales / data.currTarget) * 100 : 0;
   const realizedPercentage = data.currTarget > 0 ? (data.hybridRealizedSales / data.currTarget) * 100 : 0;
 
-  const mailSubject = encodeURIComponent(`[${todayString}] Tarihli Günleme Hk.`);
+  // 🚀 DÜZELTME: Tarihi tam senin Calc formülündeki gibi DD.MM.YYYY formatına çeviriyoruz
+  const formattedDateString = `${String(currentDay).padStart(2, '0')}.${String(currentMonth).padStart(2, '0')}.${currentYear}`;
+
+  const mailSubject = encodeURIComponent(`${formattedDateString} Tarihli Günleme Hk.`);
   const formattedRevenue = Number(quickRevenue || 0).toLocaleString('tr-TR', { maximumFractionDigits: 0 });
-  const mailBody = encodeURIComponent(`Merhaba;\n${todayString} tarihli ciromuz ${formattedRevenue} TL'dir.\nİyi çalışmalar.`);
+  const mailBody = encodeURIComponent(`Merhaba;\n${formattedDateString} tarihli ciromuz ${formattedRevenue} TL'dir.\nİyi çalışmalar.`);
+  
+  // Outlook Web Access (OWA) Compose URL'si
   const owaLink = `https://mail.saatvesaat.com/owa/#path=/mail/action/compose&to=${encodeURIComponent(reportEmail)}&subject=${mailSubject}&body=${mailBody}`;
 
   return (
