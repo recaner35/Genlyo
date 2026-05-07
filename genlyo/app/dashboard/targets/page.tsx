@@ -16,7 +16,6 @@ export default function TargetsPage() {
   const { data: session } = useSession();
   const userRole = (session?.user as any)?.role || "STORE_MANAGER";
   
-  // 🚀 DÜZELTME: Artık sadece Admin değil, Mağaza ve Bölge müdürleri de butonları görebilir.
   const canEditTargets = userRole === "ADMIN" || userRole === "STORE_MANAGER" || userRole === "REGION_MANAGER";
   const isAdmin = userRole === "ADMIN";
 
@@ -48,9 +47,16 @@ export default function TargetsPage() {
   const fetchData = async () => {
     try {
       setLoading(true);
+      // 🚀 DÜZELTME: URL'nin sonuna Date.now() ekleyerek ve Cache-Control atayarak tarayıcının hafızadan eski veriyi getirmesini kilitledik.
       const [resT, resS] = await Promise.all([
-        fetch(`/api/targets?year=${selectedYear}`, { cache: 'no-store' }),
-        fetch('/api/stores', { cache: 'no-store' })
+        fetch(`/api/targets?year=${selectedYear}&_t=${Date.now()}`, { 
+          cache: 'no-store',
+          headers: { 'Cache-Control': 'no-cache, no-store, must-revalidate', 'Pragma': 'no-cache' }
+        }),
+        fetch(`/api/stores?_t=${Date.now()}`, { 
+          cache: 'no-store',
+          headers: { 'Cache-Control': 'no-cache, no-store, must-revalidate', 'Pragma': 'no-cache' }
+        })
       ]);
       const tData = await resT.json();
       const sData = await resS.json();
@@ -58,7 +64,6 @@ export default function TargetsPage() {
       const targetsArray = Array.isArray(tData) ? tData : [];
       setTargets(targetsArray);
       
-      // 🚀 DÜZELTME: Mağazaların listesi, kişinin rolüne göre doğru şekilde ayarlanıyor.
       const storesList = Array.isArray(sData) ? sData : (sData.store ? [sData.store] : []);
       if (isAdmin) {
           setStores(storesList);
@@ -86,7 +91,11 @@ export default function TargetsPage() {
   const fetchMotor2Data = async () => {
     setLoadingMotor(true);
     try {
-      const res = await fetch(`/api/analysis/motor2?year=${selectedYear}&month=${selectedMonth}&level=STORE&filterId=ALL`, { cache: 'no-store' });
+      // 🚀 DÜZELTME: Aynı önbellek kırma taktiğini motor analizi için de yapıyoruz.
+      const res = await fetch(`/api/analysis/motor2?year=${selectedYear}&month=${selectedMonth}&level=STORE&filterId=ALL&_t=${Date.now()}`, { 
+        cache: 'no-store',
+        headers: { 'Cache-Control': 'no-cache, no-store, must-revalidate', 'Pragma': 'no-cache' }
+      });
       if (res.ok) {
         const result = await res.json();
         setMotorData(result);
@@ -94,7 +103,6 @@ export default function TargetsPage() {
     } catch (err) { console.error(err); } finally { setLoadingMotor(false); }
   };
 
-  // 🚀 DÜZELTME: Sessiz hata engellendi. Kayıt durumunda kullanıcıya bilgi veriliyor.
   const handleSaveTargets = async () => {
     setIsSaving(true);
     const payload = Object.entries(entryData)
@@ -172,7 +180,6 @@ export default function TargetsPage() {
             Günlük Satış, Motor 2 Tahminleri ve Prim Eşikleri
           </p>
         </div>
-        {/* 🚀 DÜZELTME: Buton görünürlüğü canEditTargets değişkenine bağlandı */}
         {canEditTargets && (
             <button onClick={() => setViewMode(viewMode === "VIEW" ? "ENTRY" : "VIEW")} className={`px-8 py-3.5 rounded-2xl font-black transition-all shadow-lg ${viewMode === "ENTRY" ? 'bg-slate-900 text-white' : 'bg-white border border-slate-200 text-slate-700 hover:border-indigo-500'}`}>
               {viewMode === "VIEW" ? "⚙️ Hedef Tanımla" : "📊 Analize Dön"}
@@ -200,7 +207,7 @@ export default function TargetsPage() {
               <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
                  {dailyRemainingStats.map((stat, i) => (
                     <div key={i} className={`p-5 rounded-3xl border transition-all ${stat.isReached ? 'bg-emerald-600 border-emerald-500 text-white shadow-emerald-100 shadow-xl' : 'bg-white border-slate-200 shadow-sm'}`}>
-                       <p className={`text-[10px] font-black uppercase tracking-widest mb-1 ${stat.isReached ? 'text-emerald-100' : 'text-slate-400'}`}>{stat.label} HEDEFİ</p>
+                       <p className={`text-[10px] font-black uppercase tracking-widest mb-1 ${stat.isReached ? 'textemerald-100' : 'text-slate-400'}`}>{stat.label} HEDEFİ</p>
                        {stat.isReached ? (
                           <div className="flex items-center gap-2">
                              <span className="text-xl font-black">✓ TAMAM</span>

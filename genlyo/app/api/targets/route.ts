@@ -6,14 +6,17 @@ import { PrismaPg } from '@prisma/adapter-pg';
 import { getServerSession } from "next-auth/next";
 import { authOptions } from "@/lib/auth";
 
+// 🚀 DÜZELTME: Next.js ve Vercel'in bu API'yi önbelleğe (cache) almasını tamamen yasaklıyoruz.
 export const dynamic = 'force-dynamic';
+export const revalidate = 0;
+export const fetchCache = 'force-no-store';
 
 const connectionString = process.env.DATABASE_URL || "";
 const pool = new Pool({ connectionString });
 const adapter = new PrismaPg(pool);
 const prisma = new PrismaClient({ adapter });
 
-// GET Metodu (Değişmedi, sadece hiyerarşiyi koruyor)
+// GET Metodu
 export async function GET(request: Request) {
   try {
     const { searchParams } = new URL(request.url);
@@ -63,7 +66,7 @@ export async function GET(request: Request) {
   } catch (error) { return NextResponse.json({ error: "Hata" }, { status: 500 }); }
 }
 
-// 🚀 POST Metodu: UUID Hataları Çözüldü ve TypeScript (Zorunlu Alan) Uyumu Sağlandı
+// POST Metodu
 export async function POST(request: Request) {
   try {
     const session = await getServerSession(authOptions);
@@ -81,7 +84,8 @@ export async function POST(request: Request) {
       
       const year = parseInt(item.year);
       const month = parseInt(item.month);
-      const safeDate = new Date(Date.UTC(year, month - 1, 1, 12, 0, 0));
+      // 🚀 DÜZELTME: Veritabanı saatini standart gece yarısı UTC'sine ayarladık.
+      const safeDate = new Date(Date.UTC(year, month - 1, 1, 0, 0, 0));
       const searchStart = new Date(Date.UTC(year, month - 1, 1, 0, 0, 0));
       const searchEnd = new Date(Date.UTC(year, month, 0, 23, 59, 59));
 
@@ -93,15 +97,12 @@ export async function POST(request: Request) {
         await prisma.target.update({ where: { id: existing.id }, data: { targetAmount: val, date: safeDate } });
       } else {
         const store = await prisma.store.findUnique({ where: { id: item.storeId } });
-        
-        // 🚀 DÜZELTME: Prisma şemasına göre regionId ZORUNLU (String). 
-        // Eğer mağaza veritabanında yoksa, hedefi de oluşturamayız (continue ile atla).
         if (!store) continue;
         
         await prisma.target.create({ 
             data: { 
               storeId: item.storeId, 
-              regionId: store.regionId, // 🚀 Mağaza varsa regionId kesinlikle string olarak gelecektir.
+              regionId: store.regionId, 
               date: safeDate, 
               targetAmount: val 
             } 
