@@ -6,6 +6,11 @@ import { PrismaPg } from '@prisma/adapter-pg';
 import { getServerSession } from "next-auth/next";
 import { authOptions } from "@/lib/auth";
 
+// 🚀 DÜZELTME 1: Cache (Önbellek) Kırıcılar. Anlık veri takibi için ŞARTTIR.
+export const dynamic = 'force-dynamic';
+export const revalidate = 0;
+export const fetchCache = 'force-no-store';
+
 const connectionString = process.env.DATABASE_URL || "";
 const pool = new Pool({ connectionString });
 const adapter = new PrismaPg(pool);
@@ -24,18 +29,16 @@ export async function GET(request: Request) {
     const startDate = new Date(Date.UTC(year, month - 1, 1, 0, 0, 0, 0));
     const endDate = new Date(Date.UTC(year, month, 0, 23, 59, 59, 999));
 
-    // 🚀 DÜZELTME 1: Oturumdaki email ile gerçek kullanıcıyı buluyoruz (Çünkü storeId burada)
     const currentUser = await prisma.user.findUnique({ 
         where: { email: session.user.email } 
     });
 
     let storeFilter = {};
-    let allowedStoreId = null; // Ön yüze filtreleme için göndereceğiz
+    let allowedStoreId = null;
 
     if (currentUser?.role === "REGION_MANAGER") {
         storeFilter = { region: { managerId: currentUser.id } };
     } else if (currentUser?.role === "STORE_MANAGER") {
-        // 🚀 DÜZELTME 2: Personnel tablosu yerine doğrudan User tablosundaki storeId'yi kullanıyoruz
         storeFilter = { id: currentUser.storeId };
         allowedStoreId = currentUser.storeId;
     }
@@ -47,7 +50,6 @@ export async function GET(request: Request) {
       }
     });
 
-    // 🚀 DÜZELTME 3: Sadece satışları değil, kullanıcının yetkili olduğu mağazayı da bildiriyoruz
     return NextResponse.json({ sales, allowedStoreId });
   } catch (error) {
     console.error("GET SATIŞ HATASI:", error);
@@ -63,7 +65,7 @@ export async function POST(request: Request) {
     let updatedCount = 0;
 
     for (const item of body) {
-      // Mutlak UTC Tarih oluştur (Saat dilimi kaymasını önlemek için)
+      // Saat dilimi kaymasını önlemek için
       const entryDate = new Date(Date.UTC(item.year, item.month - 1, item.day, 0, 0, 0, 0));
 
       let revenueValue = item.revenue;
@@ -88,38 +90,27 @@ export async function POST(request: Request) {
         isPayday: entryDate.getUTCDate() === 5
       };
 
-      // 🚀 "GÜNCEL OLAN KAZANIR" MANTIĞI: Mevcut kaydı kontrol et
       const existing = await prisma.salesFact.findFirst({
         where: { storeId: storeInfo.id, date: entryDate }
       });
 
       if (existing) {
-        // Varsa Üstüne Yaz (Update)
+        // Varsa Üstüne Yaz
         await prisma.salesFact.update({
           where: { id: existing.id },
           data: { 
             revenue: revenueValue,
-            calendar: {
-                connectOrCreate: {
-                    where: { date: entryDate },
-                    create: calendarData
-                }
-            }
+            calendar: { connectOrCreate: { where: { date: entryDate }, create: calendarData } }
           }
         });
       } else {
-        // Yoksa Yeni Oluştur (Create)
+        // Yoksa Yeni Oluştur
         await prisma.salesFact.create({
           data: {
             revenue: revenueValue,
             store: { connect: { id: storeInfo.id } },
             region: { connect: { id: storeInfo.regionId } },
-            calendar: {
-                connectOrCreate: {
-                    where: { date: entryDate },
-                    create: calendarData
-                }
-            }
+            calendar: { connectOrCreate: { where: { date: entryDate }, create: calendarData } }
           }
         });
       }
