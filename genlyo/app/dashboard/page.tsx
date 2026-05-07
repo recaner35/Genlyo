@@ -25,6 +25,9 @@ export default function DashboardHomePage() {
   const [quickRevenue, setQuickRevenue] = useState("");
   const [isSavingQuick, setIsSavingQuick] = useState(false);
 
+  // 🚀 YENİ: Mail adresi için State
+  const [reportEmail, setReportEmail] = useState("");
+
   const userRole = session?.user?.role;
   const isStoreManager = userRole === "STORE_MANAGER";
   const isRegionManager = userRole === "REGION_MANAGER";
@@ -34,6 +37,8 @@ export default function DashboardHomePage() {
   const currentDay = today.getDate();
   const currentMonth = today.getMonth() + 1;
   const currentYear = today.getFullYear();
+  
+  const todayString = `${currentDay} ${data.currMonthName} ${currentYear}`;
 
   useEffect(() => {
     fetch('/api/stores').then(res => res.json()).then(resData => {
@@ -54,6 +59,17 @@ export default function DashboardHomePage() {
       fetchRealizedSales();
     }
   }, [level, filterId, session]);
+
+  // 🚀 YENİ: Mağaza değiştiğinde o mağazanın kaydedilmiş mailini tarayıcıdan getir
+  useEffect(() => {
+    const targetStoreId = isStoreManager ? (myStoreId || filterId) : filterId;
+    if (targetStoreId && targetStoreId !== "ALL") {
+        const savedEmail = localStorage.getItem(`genlyo_mail_${targetStoreId}`);
+        setReportEmail(savedEmail || "");
+    } else {
+        setReportEmail("");
+    }
+  }, [filterId, myStoreId, isStoreManager]);
 
   const fetchHybridData = async () => {
     setLoading(true);
@@ -96,24 +112,16 @@ export default function DashboardHomePage() {
           
           setData(prev => ({ ...prev, hybridRealizedSales: total }));
 
-          // 🚀 YENİ EKLENTİ: Bugünün cirosunu API'den bul ve kutuya (input) yerleştir!
           const targetStoreIdForToday = isStoreManager ? (actualStoreId || filterId) : filterId;
           
           if (targetStoreIdForToday && targetStoreIdForToday !== "ALL") {
-              // Mevcut aydaki satışların içinde, sadece seçili mağazayı ve bugünün tarihini ara
               const todaySale = salesArray.find((s: any) => {
                   const sDate = new Date(s.date);
-                  // getUTCDate() kullanıyoruz çünkü arka planda verileri UTC 00:00:00 ile saklıyoruz
                   return s.storeId === targetStoreIdForToday && sDate.getUTCDate() === currentDay;
               });
 
-              if (todaySale) {
-                  // Eğer bugüne ait ciro bulunduysa kutuya yazdır
-                  setQuickRevenue(todaySale.revenue.toString());
-              } else {
-                  // Yoksa kutuyu boş bırak
-                  setQuickRevenue("");
-              }
+              if (todaySale) setQuickRevenue(todaySale.revenue.toString());
+              else setQuickRevenue("");
           } else {
               setQuickRevenue("");
           }
@@ -155,9 +163,8 @@ export default function DashboardHomePage() {
       const resData = await res.json();
 
       if (res.ok && resData.count > 0) {
-        // 🚀 DÜZELTME: setQuickRevenue(""); satırını sildik, kutu sıfırlanmayacak!
         alert("✅ Bugünün cirosu başarıyla kaydedildi/güncellendi!");
-        fetchRealizedSales(); // Ciro barını anında yenile
+        fetchRealizedSales(); 
       } else {
         alert("❌ Kaydedilemedi! Veritabanında eşleşen Mağaza bulunamadı.");
       }
@@ -166,6 +173,21 @@ export default function DashboardHomePage() {
     } finally {
       setIsSavingQuick(false);
     }
+  };
+
+  // 🚀 YENİ: Tarayıcı Hafızasına Mail Kaydetme
+  const handleSaveEmail = () => {
+    const targetStoreId = isStoreManager ? (myStoreId || filterId) : filterId;
+    if (!targetStoreId || targetStoreId === "ALL") {
+        alert("Lütfen önce bir mağaza seçin.");
+        return;
+    }
+    if (!reportEmail.includes("@")) {
+        alert("Lütfen geçerli bir e-posta adresi girin.");
+        return;
+    }
+    localStorage.setItem(`genlyo_mail_${targetStoreId}`, reportEmail);
+    alert("✅ Raporlama mail adresi bu mağaza için cihazınıza kaydedildi!");
   };
 
   const regions = useMemo(() => {
@@ -178,6 +200,10 @@ export default function DashboardHomePage() {
 
   const closingPercentage = data.currTarget > 0 ? (data.hybridCurrSales / data.currTarget) * 100 : 0;
   const realizedPercentage = data.currTarget > 0 ? (data.hybridRealizedSales / data.currTarget) * 100 : 0;
+
+  // 🚀 YENİ: Mailto Linki Dinamik Hazırlama
+  const mailSubject = encodeURIComponent(`[${todayString}] Tarihli Günleme Hk.`);
+  const mailBody = encodeURIComponent(`Merhaba;\n${todayString} tarihli ciromuz ${quickRevenue || "0"} TL'dir.\nİyi çalışmalar.`);
 
   return (
     <div className="p-4 md:p-8 bg-slate-50 min-h-screen font-sans text-slate-900">
@@ -276,26 +302,26 @@ export default function DashboardHomePage() {
           </div>
         </div>
 
-        {/* 🚀 1.5. YENİ KART: HIZLI CİRO GİRİŞİ VE GERÇEKLEŞEN DURUM */}
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
+        {/* 🚀 1.5. KÜMÜLATİF, GİRİŞ VE MAİL (3 KOLONLU YENİ YAPI) */}
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
             
-            {/* Gerçekleşen Özet Kartı */}
+            {/* 1. Gerçekleşen Özet Kartı */}
             <div className="bg-white rounded-3xl p-8 border border-slate-200 shadow-xl flex flex-col justify-between">
                 <div>
-                  <h3 className="text-xl font-black text-slate-800 mb-2">Kümülatif Gerçekleşen <span className="text-sm font-bold text-slate-400 ml-2">({data.currMonthName} Ayı)</span></h3>
+                  <h3 className="text-xl font-black text-slate-800 mb-2">Kümülatif Gerçekleşen</h3>
                   <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-6">Şu Ana Kadar Kesinleşen Satışlar</p>
                   
                   {loading ? (
                       <div className="h-12 w-48 bg-slate-100 rounded animate-pulse"></div>
                   ) : (
                       <>
-                        <h2 className="text-5xl font-black text-slate-800 tracking-tight">{formatMoney(data.hybridRealizedSales)}</h2>
+                        <h2 className="text-4xl xl:text-5xl font-black text-slate-800 tracking-tight">{formatMoney(data.hybridRealizedSales)}</h2>
                         {data.currTarget > 0 && (
                             <div className="w-full mt-8">
-                                <div className="flex justify-between text-sm font-bold text-slate-600 mb-2">
-                                    <span>Güncel Hedef: {formatMoney(data.currTarget)}</span>
+                                <div className="flex justify-between text-[11px] font-bold text-slate-600 mb-2">
+                                    <span>Hedef: {formatMoney(data.currTarget)}</span>
                                     <span className={realizedPercentage >= 100 ? 'text-emerald-600' : 'text-indigo-600'}>
-                                        %{realizedPercentage.toFixed(1)} Tamamlandı
+                                        %{realizedPercentage.toFixed(1)}
                                     </span>
                                 </div>
                                 <div className="w-full h-2.5 bg-slate-100 rounded-full overflow-hidden">
@@ -308,11 +334,11 @@ export default function DashboardHomePage() {
                 </div>
             </div>
 
-            {/* Hızlı Ciro Giriş Kartı */}
+            {/* 2. Hızlı Ciro Giriş Kartı */}
             <div className="bg-gradient-to-br from-slate-900 to-slate-800 rounded-3xl p-8 border border-slate-700 shadow-xl flex flex-col justify-between relative overflow-hidden">
                 <div className="relative z-10">
                   <h3 className="text-xl font-black text-white mb-2">Günlük Kasa Bildirimi</h3>
-                  <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-6">Tarih: {currentDay} {data.currMonthName} {currentYear}</p>
+                  <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-6">Tarih: {todayString}</p>
                   
                   <div className="flex flex-col gap-4">
                       {level === "STORE" && filterId !== "ALL" ? (
@@ -321,10 +347,10 @@ export default function DashboardHomePage() {
                                 <span className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400 font-bold">₺</span>
                                 <input 
                                    type="text" 
-                                   placeholder="Bugünün Cirosunu Girin..." 
+                                   placeholder="Ciro Girin..." 
                                    value={quickRevenue}
                                    onChange={(e) => setQuickRevenue(e.target.value)}
-                                   className="w-full pl-10 pr-4 py-4 rounded-xl bg-slate-800/50 border border-slate-600 text-white font-mono font-bold outline-none focus:border-indigo-400 transition-colors"
+                                   className="w-full pl-10 pr-4 py-4 rounded-xl bg-slate-800/50 border border-slate-600 text-white font-mono font-black outline-none focus:border-indigo-400 transition-colors"
                                 />
                              </div>
                              <button 
@@ -332,12 +358,54 @@ export default function DashboardHomePage() {
                                 disabled={isSavingQuick}
                                 className="w-full bg-indigo-600 text-white px-6 py-4 rounded-xl font-black shadow-lg hover:bg-indigo-500 disabled:opacity-50 transition-all uppercase tracking-widest text-sm"
                              >
-                                {isSavingQuick ? "KAYDEDİLİYOR..." : "HIZLI KAYDET"}
+                                {isSavingQuick ? "KAYDEDİLİYOR..." : "SİSTEME KAYDET"}
                              </button>
                           </>
                       ) : (
-                          <div className="bg-amber-500/10 border border-amber-500/20 p-6 rounded-xl text-center">
-                             <p className="text-amber-400 font-bold text-sm">Hızlı ciro girişi yapabilmek için lütfen yukarıdaki menüden spesifik bir <strong>Mağaza</strong> seçiniz.</p>
+                          <div className="bg-amber-500/10 border border-amber-500/20 p-6 rounded-xl text-center h-full flex items-center justify-center">
+                             <p className="text-amber-400 font-bold text-sm">Giriş yapmak için <strong>Mağaza</strong> seçiniz.</p>
+                          </div>
+                      )}
+                  </div>
+                </div>
+            </div>
+
+            {/* 🚀 3. YENİ KART: Gün Sonu Mail Raporlama */}
+            <div className="bg-white rounded-3xl p-8 border border-slate-200 shadow-xl flex flex-col justify-between">
+                <div>
+                  <h3 className="text-xl font-black text-slate-800 mb-2">Gün Sonu Bildirimi</h3>
+                  <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-6">Tek Tıkla Mail Gönderimi</p>
+                  
+                  <div className="flex flex-col gap-4">
+                      {level === "STORE" && filterId !== "ALL" ? (
+                          <>
+                             <div className="flex items-center gap-2">
+                                <input 
+                                   type="email" 
+                                   placeholder="Alıcı Mail Adresi..." 
+                                   value={reportEmail}
+                                   onChange={(e) => setReportEmail(e.target.value)}
+                                   className="flex-1 px-4 py-4 rounded-xl bg-slate-50 border border-slate-200 text-slate-800 font-bold outline-none focus:border-blue-400 transition-colors text-sm"
+                                />
+                                <button 
+                                   onClick={handleSaveEmail} 
+                                   className="bg-slate-800 text-white px-5 py-4 rounded-xl font-black shadow-md hover:bg-slate-700 transition-all text-xs uppercase tracking-wider"
+                                >
+                                  KAYDET
+                                </button>
+                             </div>
+
+                             <a 
+                                href={reportEmail ? `mailto:${reportEmail}?subject=${mailSubject}&body=${mailBody}` : '#'}
+                                onClick={(e) => { if(!reportEmail) { e.preventDefault(); alert('Lütfen önce bir mail adresi kaydedin.'); } }}
+                                className={`w-full text-white px-6 py-4 rounded-xl font-black shadow-lg transition-all uppercase tracking-widest text-sm text-center flex items-center justify-center gap-2 ${reportEmail ? 'bg-blue-600 hover:bg-blue-500 shadow-blue-200' : 'bg-slate-300 cursor-not-allowed'}`}
+                             >
+                                <span>✉️ MAİL UYGULAMASINI AÇ</span>
+                             </a>
+                          </>
+                      ) : (
+                          <div className="bg-slate-50 border border-slate-100 p-6 rounded-xl text-center h-full flex items-center justify-center">
+                             <p className="text-slate-500 font-bold text-sm">Mail şablonu için <strong>Mağaza</strong> seçiniz.</p>
                           </div>
                       )}
                   </div>
