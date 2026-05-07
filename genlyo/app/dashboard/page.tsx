@@ -11,7 +11,6 @@ export default function DashboardHomePage() {
   const [filterId, setFilterId] = useState("ALL");
   const [stores, setStores] = useState<any[]>([]);
   
-  // 🚀 DÜZELTME 1: Mağaza müdürünün API'den gelen GERÇEK ID'sini tutmak için yeni state
   const [myStoreId, setMyStoreId] = useState<string | null>(null);
 
   const [data, setData] = useState({ 
@@ -71,7 +70,6 @@ export default function DashboardHomePage() {
 
   const fetchRealizedSales = async () => {
     try {
-       // Tarayıcıyı kandırmak ve en güncel veriyi almak için Date.now() ekliyoruz
        const res = await fetch(`/api/sales?year=${currentYear}&month=${currentMonth}&_t=${Date.now()}`, {
            cache: 'no-store'
        });
@@ -80,15 +78,14 @@ export default function DashboardHomePage() {
           const result = await res.json();
           const salesArray = Array.isArray(result?.sales) ? result.sales : [];
           
-          // Arka planın sana "Senin gerçek mağaza ID'n bu" dediği değeri kaydediyoruz
+          let actualStoreId = myStoreId;
           if (result.allowedStoreId) {
               setMyStoreId(result.allowedStoreId);
+              actualStoreId = result.allowedStoreId;
           }
 
           let total = 0;
           
-          // 🚀 DÜZELTME 2: Göz yanılmasını engelliyoruz! 
-          // Eğer mağaza müdürü isen filtre listesine aldırış etmeden doğrudan tüm satışlarını (zaten sadece seninkiler geliyor) topluyoruz.
           if (isStoreManager || filterId === "ALL") {
               total = salesArray.reduce((acc: number, curr: any) => acc + Number(curr.revenue), 0);
           } else if (level === "STORE") {
@@ -98,6 +95,28 @@ export default function DashboardHomePage() {
           }
           
           setData(prev => ({ ...prev, hybridRealizedSales: total }));
+
+          // 🚀 YENİ EKLENTİ: Bugünün cirosunu API'den bul ve kutuya (input) yerleştir!
+          const targetStoreIdForToday = isStoreManager ? (actualStoreId || filterId) : filterId;
+          
+          if (targetStoreIdForToday && targetStoreIdForToday !== "ALL") {
+              // Mevcut aydaki satışların içinde, sadece seçili mağazayı ve bugünün tarihini ara
+              const todaySale = salesArray.find((s: any) => {
+                  const sDate = new Date(s.date);
+                  // getUTCDate() kullanıyoruz çünkü arka planda verileri UTC 00:00:00 ile saklıyoruz
+                  return s.storeId === targetStoreIdForToday && sDate.getUTCDate() === currentDay;
+              });
+
+              if (todaySale) {
+                  // Eğer bugüne ait ciro bulunduysa kutuya yazdır
+                  setQuickRevenue(todaySale.revenue.toString());
+              } else {
+                  // Yoksa kutuyu boş bırak
+                  setQuickRevenue("");
+              }
+          } else {
+              setQuickRevenue("");
+          }
        }
     } catch (err) { console.error("Gerçekleşen satış çekilemedi:", err); }
   };
@@ -108,8 +127,6 @@ export default function DashboardHomePage() {
       return;
     }
 
-    // 🚀 DÜZELTME 3: Yanlış mağazaya kaydetmeyi engelliyoruz!
-    // Eğer Mağaza Müdürü isen, filtredeki yanlış ID'yi ezip gerçek ID'ni gönderiyoruz.
     const targetStoreId = isStoreManager ? (myStoreId || filterId) : filterId;
 
     if (!targetStoreId || targetStoreId === "ALL") {
@@ -138,8 +155,8 @@ export default function DashboardHomePage() {
       const resData = await res.json();
 
       if (res.ok && resData.count > 0) {
-        setQuickRevenue("");
-        alert("✅ Bugünün cirosu başarıyla kaydedildi!");
+        // 🚀 DÜZELTME: setQuickRevenue(""); satırını sildik, kutu sıfırlanmayacak!
+        alert("✅ Bugünün cirosu başarıyla kaydedildi/güncellendi!");
         fetchRealizedSales(); // Ciro barını anında yenile
       } else {
         alert("❌ Kaydedilemedi! Veritabanında eşleşen Mağaza bulunamadı.");
