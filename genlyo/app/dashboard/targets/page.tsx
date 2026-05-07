@@ -17,10 +17,8 @@ export default function TargetsPage() {
   const userRole = (session?.user as any)?.role || "STORE_MANAGER";
   
   const canEditTargets = userRole === "ADMIN" || userRole === "STORE_MANAGER" || userRole === "REGION_MANAGER";
-  const isAdmin = userRole === "ADMIN";
-
+  
   const currentYear = new Date().getFullYear();
-  const currentMonth = new Date().getMonth() + 1;
 
   const [viewMode, setViewMode] = useState<"VIEW" | "ENTRY">("VIEW");
   const [targets, setTargets] = useState<any[]>([]);
@@ -28,7 +26,8 @@ export default function TargetsPage() {
   const [loading, setLoading] = useState(true);
   
   const [selectedYear, setSelectedYear] = useState(currentYear); 
-  const [selectedMonth, setSelectedMonth] = useState<number | "ALL">(currentMonth);
+  // 🚀 DÜZELTME 1: Sayfaya girildiğinde filtrenin sıfırlanıp "boş ay" göstermesini engellemek için varsayılanı "ALL" (Tüm Yıl) yaptık.
+  const [selectedMonth, setSelectedMonth] = useState<number | "ALL">("ALL");
   const [storeSearch, setStoreSearch] = useState("");
   
   const [entryData, setEntryData] = useState<any>({});
@@ -47,7 +46,6 @@ export default function TargetsPage() {
   const fetchData = async () => {
     try {
       setLoading(true);
-      // 🚀 DÜZELTME: URL'nin sonuna Date.now() ekleyerek ve Cache-Control atayarak tarayıcının hafızadan eski veriyi getirmesini kilitledik.
       const [resT, resS] = await Promise.all([
         fetch(`/api/targets?year=${selectedYear}&_t=${Date.now()}`, { 
           cache: 'no-store',
@@ -64,18 +62,10 @@ export default function TargetsPage() {
       const targetsArray = Array.isArray(tData) ? tData : [];
       setTargets(targetsArray);
       
+      // 🚀 DÜZELTME 2: Ön yüzdeki kısıtlayıcı filtreyi kaldırdık. Arka plan API'si zaten güvenliği sağlıyor. 
+      // Böylece sayfa yenilense bile mağaza tablosu asla boş kalmayacak.
       const storesList = Array.isArray(sData) ? sData : (sData.store ? [sData.store] : []);
-      if (isAdmin) {
-          setStores(storesList);
-      } else if (userRole === "STORE_MANAGER") {
-          const myStoreId = (session?.user as any)?.storeId;
-          const myStore = storesList.find((s: any) => s.id === myStoreId);
-          setStores(myStore ? [myStore] : []);
-      } else if (userRole === "REGION_MANAGER") {
-          const myRegionId = (session?.user as any)?.regionId;
-          const myStores = storesList.filter((s: any) => s.regionId === myRegionId);
-          setStores(myStores);
-      }
+      setStores(storesList);
 
       const initialEntryData: any = {};
       targetsArray.forEach((t: any) => {
@@ -91,7 +81,6 @@ export default function TargetsPage() {
   const fetchMotor2Data = async () => {
     setLoadingMotor(true);
     try {
-      // 🚀 DÜZELTME: Aynı önbellek kırma taktiğini motor analizi için de yapıyoruz.
       const res = await fetch(`/api/analysis/motor2?year=${selectedYear}&month=${selectedMonth}&level=STORE&filterId=ALL&_t=${Date.now()}`, { 
         cache: 'no-store',
         headers: { 'Cache-Control': 'no-cache, no-store, must-revalidate', 'Pragma': 'no-cache' }
@@ -116,6 +105,8 @@ export default function TargetsPage() {
         const res = await fetch('/api/targets', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) });
         if (res.ok) { 
             setViewMode("VIEW"); 
+            // 🚀 DÜZELTME 3: Kayıt sonrası "Tüm Yıl" görünümüne geç ki kullanıcı kaydettiği veriyi anında görebilsin.
+            setSelectedMonth("ALL");
             fetchData(); 
             alert("✅ Hedefler başarıyla kaydedildi!");
         } else {
@@ -203,11 +194,11 @@ export default function TargetsPage() {
           
           {selectedMonth !== "ALL" && motorData && (
             <>
-              {/* ÜST PANEL: PRIM EŞİKLERİ VE KALAN GÜNLÜK İHTİYAÇ */}
+              {/* ÜST PANEL */}
               <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
                  {dailyRemainingStats.map((stat, i) => (
                     <div key={i} className={`p-5 rounded-3xl border transition-all ${stat.isReached ? 'bg-emerald-600 border-emerald-500 text-white shadow-emerald-100 shadow-xl' : 'bg-white border-slate-200 shadow-sm'}`}>
-                       <p className={`text-[10px] font-black uppercase tracking-widest mb-1 ${stat.isReached ? 'textemerald-100' : 'text-slate-400'}`}>{stat.label} HEDEFİ</p>
+                       <p className={`text-[10px] font-black uppercase tracking-widest mb-1 ${stat.isReached ? 'text-emerald-100' : 'text-slate-400'}`}>{stat.label} HEDEFİ</p>
                        {stat.isReached ? (
                           <div className="flex items-center gap-2">
                              <span className="text-xl font-black">✓ TAMAM</span>
@@ -226,14 +217,6 @@ export default function TargetsPage() {
               <div className="bg-white rounded-[2.5rem] shadow-xl border border-slate-200 overflow-hidden">
                  <div className="p-8 border-b bg-slate-50/50 flex justify-between items-center">
                     <h3 className="text-xl font-black italic uppercase">Günlük <span className="text-indigo-600">Performans Akışı</span></h3>
-                    <div className="flex gap-4">
-                       <div className="flex items-center gap-2 text-xs font-bold text-slate-500">
-                          <span className="w-3 h-3 rounded-full bg-indigo-500"></span> Tahmin (AI)
-                       </div>
-                       <div className="flex items-center gap-2 text-xs font-bold text-slate-500">
-                          <span className="w-3 h-3 rounded-full bg-slate-800"></span> Gerçekleşen
-                       </div>
-                    </div>
                  </div>
                  <div className="overflow-x-auto max-h-[600px] scrollbar-thin scrollbar-thumb-slate-200">
                     <table className="w-full text-left whitespace-nowrap">
@@ -257,11 +240,6 @@ export default function TargetsPage() {
                                          {row.day} {MONTHS.find(m => m.id === Number(selectedMonth))?.name} 
                                          <span className="text-slate-400 ml-2 font-bold">{getDayName(row.dayOfWeek)}</span>
                                       </div>
-                                      {row.context !== "Standart" && (
-                                         <div className={`text-[10px] font-black mt-1 uppercase tracking-tighter ${row.isSpecial ? 'text-amber-600' : 'text-indigo-400'}`}>
-                                            {row.isSpecial && "✦ "} {row.context}
-                                         </div>
-                                      )}
                                    </td>
                                    <td className="p-6 text-right font-mono">
                                       {isActual ? (
@@ -289,18 +267,6 @@ export default function TargetsPage() {
                              );
                           })}
                        </tbody>
-                       <tfoot className="sticky bottom-0 bg-slate-900 text-white z-20">
-                          <tr className="font-black text-sm">
-                             <td className="p-6 text-right uppercase text-[10px] text-slate-400 tracking-widest">Aylık Toplam / Projeksiyon:</td>
-                             <td className="p-6 text-right text-emerald-400 font-mono">{formatMoney(motorData.summary.currentMonthEomForecast)}</td>
-                             <td className="p-6 text-right border-l border-slate-700 text-indigo-300 font-mono">{formatMoney(motorData.summary.currentMonthTarget)}</td>
-                             <td className="p-6 text-center border-l border-slate-700">
-                                <span className={`px-3 py-1 rounded-lg text-xs ${motorData.summary.currentMonthTargetRealization >= 100 ? 'bg-emerald-500/20 text-emerald-400' : 'bg-amber-500/20 text-amber-400'}`}>
-                                   %{motorData.summary.currentMonthTargetRealization}
-                                </span>
-                             </td>
-                          </tr>
-                       </tfoot>
                     </table>
                  </div>
               </div>
