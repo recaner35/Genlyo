@@ -63,7 +63,7 @@ export async function GET(request: Request) {
   } catch (error) { return NextResponse.json({ error: "Hata" }, { status: 500 }); }
 }
 
-// 🚀 POST Metodu: UUID Hataları Çözüldü ve Güvenlik Sıkılaştırıldı
+// 🚀 POST Metodu: UUID Hataları Çözüldü ve TypeScript (undefined) Uyumu Sağlandı
 export async function POST(request: Request) {
   try {
     const session = await getServerSession(authOptions);
@@ -74,7 +74,6 @@ export async function POST(request: Request) {
     const body = await request.json();
 
     for (const item of body) {
-      // 🛡️ Güvenlik: Mağaza müdürü sadece kendi mağazasının hedefini girebilir
       if (userRole === "STORE_MANAGER" && item.storeId !== currentUser?.storeId) continue;
 
       const val = parseFloat(item.amount);
@@ -94,8 +93,8 @@ export async function POST(request: Request) {
         await prisma.target.update({ where: { id: existing.id }, data: { targetAmount: val, date: safeDate } });
       } else {
         const store = await prisma.store.findUnique({ where: { id: item.storeId } });
-        // 🚀 DÜZELTME: regionId boşsa "" yerine null gönderiliyor, veritabanı çökmekten kurtuluyor.
-        const safeRegionId = store?.regionId ? store.regionId : null;
+        // 🚀 DÜZELTME: null yerine TypeScript'in beklediği undefined kelimesi kullanıldı
+        const safeRegionId = store?.regionId ? store.regionId : undefined;
         
         await prisma.target.create({ 
             data: { storeId: item.storeId, regionId: safeRegionId, date: safeDate, targetAmount: val } 
@@ -104,7 +103,6 @@ export async function POST(request: Request) {
     }
     return NextResponse.json({ success: true });
   } catch (error: any) { 
-      // 🚀 DÜZELTME: Hata mesajını dışarıya net veriyoruz ki ön yüz bunu yakalayabilsin
       return NextResponse.json({ error: error.message }, { status: 500 }); 
   }
 }
