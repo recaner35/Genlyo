@@ -166,7 +166,10 @@ export default function DashboardHomePage() {
   const isStoreNotSelected = level !== "STORE" || filterId === "ALL";
 
   return (
-    <div className="p-6 lg:p-10 space-y-10 animate-in fade-in duration-700">
+    // p-10 yerine p-4 md:p-6, space-y-10 yerine space-y-5
+    <div className="p-4 md:p-6 space-y-5 animate-in fade-in duration-700">
+      
+      <div className="flex flex-col lg:flex-row justify-between items-start lg:items-center gap-4 mb-2">
       
       {/* ÜST FİLTRE VE KARŞILAMA BÖLÜMÜ */}
       <div className="flex flex-col lg:flex-row justify-between items-start lg:items-center gap-6">
@@ -204,40 +207,28 @@ export default function DashboardHomePage() {
       <DashboardHero data={data} formatMoney={formatMoney} closingPercentage={closingPercentage} />
 
       {/* 2. BENTO GRID KARTLARI (4'LÜ YAPI) */}
-      <section className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-6">
+      <section className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-4 items-stretch">
         <CumulativeCard hybridRealizedSales={data.hybridRealizedSales} realizedPercentage={realizedPercentage} formatMoney={formatMoney} />
         
         <QuickSaveCard 
-          formattedDateString={formattedDateString} 
-          quickRevenue={quickRevenue} 
-          setQuickRevenue={setQuickRevenue} 
-          handleQuickSave={handleQuickSave} 
-          isSavingQuick={isSavingQuick} 
-          disabled={isStoreNotSelected}
+          formattedDateString={formattedDateString} quickRevenue={quickRevenue} setQuickRevenue={setQuickRevenue} 
+          handleQuickSave={handleQuickSave} isSavingQuick={isSavingQuick} disabled={isStoreNotSelected}
         />
         
         <OwaMailCard 
-          reportEmail={reportEmail} 
-          setReportEmail={setReportEmail} 
-          owaLink={owaLink} 
-          handleSaveEmail={handleSaveEmail} 
-          disabled={isStoreNotSelected}
+          reportEmail={reportEmail} setReportEmail={setReportEmail} owaLink={owaLink} 
+          handleSaveEmail={handleSaveEmail} disabled={isStoreNotSelected}
         />
         
         <PersonnelPerformanceCard 
-          personnelSales={personnelSales} 
-          hybridRealizedSales={data.hybridRealizedSales} 
-          realizedPercentage={realizedPercentage} 
-          selectedStoreName={selectedStoreName} 
+          personnelSales={personnelSales} hybridRealizedSales={data.hybridRealizedSales} 
+          realizedPercentage={realizedPercentage} selectedStoreName={selectedStoreName} 
         />
       </section>
 
-      {/* 3. NAVİGASYON KARTI */}
       <TargetNavigationCard />
 
-      {/* 4. GELECEK AY PROJEKSİYONU */}
       <FutureProjections data={data} formatMoney={formatMoney} />
 
     </div>
   );
-}
