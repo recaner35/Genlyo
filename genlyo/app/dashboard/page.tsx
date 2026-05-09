@@ -2,10 +2,10 @@
 
 import { useEffect, useState } from "react";
 import { useSession } from "next-auth/react";
+
+// MODÜLLER (İSİMLERİN BİREBİR AYNI OLDUĞUNA DİKKAT ET)
 import TargetNavigationCard from "@/components/dashboard/TargetNavigationCard";
 import PersonnelPerformanceCard from "@/components/dashboard/PersonnelPerformanceCard";
-
-// 🚀 YENİ OLUŞTURDUĞUMUZ MODÜLLERİ ÇAĞIRIYORUZ
 import DashboardHero from "@/components/dashboard/DashboardHero";
 import CumulativeCard from "@/components/dashboard/CumulativeCard";
 import QuickSaveCard from "@/components/dashboard/QuickSaveCard";
@@ -166,12 +166,9 @@ export default function DashboardHomePage() {
   const isStoreNotSelected = level !== "STORE" || filterId === "ALL";
 
   return (
-    // p-10 yerine p-4 md:p-6, space-y-10 yerine space-y-5
     <div className="p-4 md:p-6 space-y-5 animate-in fade-in duration-700">
       
-      <div className="flex flex-col lg:flex-row justify-between items-start lg:items-center gap-4 mb-2">
-      
-      {/* ÜST FİLTRE VE KARŞILAMA BÖLÜMÜ */}
+      {/* ÜST FİLTRE BÖLÜMÜ */}
       <div className="flex flex-col lg:flex-row justify-between items-start lg:items-center gap-6">
         <div>
           <h1 className="text-3xl font-black tracking-tight text-slate-900">
@@ -226,9 +223,12 @@ export default function DashboardHomePage() {
         />
       </section>
 
+      {/* 3. NAVİGASYON KARTI */}
       <TargetNavigationCard />
 
+      {/* 4. GELECEK AY PROJEKSİYONU */}
       <FutureProjections data={data} formatMoney={formatMoney} />
 
     </div>
   );
+}
