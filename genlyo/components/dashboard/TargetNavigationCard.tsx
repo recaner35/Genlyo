@@ -5,7 +5,7 @@ import Link from "next/link";
 
 const PRIM_THRESHOLDS = [0.85, 0.95, 1.0, 1.1, 1.2];
 
-export default function TargetNavigationCard({ dailyTarget = 0, target85 = 0, target95 = 0 }: any) {
+export default function TargetNavigationCard() {
   const [motorData, setMotorData] = useState<any>(null);
   const [loading, setLoading] = useState(true);
 
@@ -35,7 +35,8 @@ export default function TargetNavigationCard({ dailyTarget = 0, target85 = 0, ta
   const dailyRemainingStats = useMemo(() => {
     if (!motorData || !motorData.daily) return [];
     
-    const T = motorData.summary?.currentMonthTarget || 0;
+    // API'den gelen asıl hedefi buluyoruz (Eğer yoksa 0)
+    const T = motorData.summary?.currentMonthTarget || motorData.summary?.targetAmount || 0;
     const S_mtd = motorData.daily.reduce((acc: number, curr: any) => acc + (curr.actualRevenue || 0), 0);
     
     const totalDaysInMonth = new Date(currentYear, currentMonth, 0).getDate();
@@ -50,7 +51,7 @@ export default function TargetNavigationCard({ dailyTarget = 0, target85 = 0, ta
             label: `%${Math.round(threshold * 100)}`,
             totalToReach: thresholdTarget,
             dailyNeeded: dailyNeeded,
-            isReached: remainingToThreshold <= 0
+            isReached: remainingToThreshold <= 0 && T > 0
         };
     });
   }, [motorData, currentYear, currentMonth]);
@@ -60,58 +61,113 @@ export default function TargetNavigationCard({ dailyTarget = 0, target85 = 0, ta
     return motorData.daily.filter((row: any) => row.day >= today);
   }, [motorData, today]);
 
-  const formatMoney = (val: number) => new Intl.NumberFormat('tr-TR', { style: 'currency', currency: 'TRY', minimumFractionDigits: 0 }).format(Math.round(val || 0));
+  const formatMoney = (val: number) => new Intl.NumberFormat('tr-TR', { style: 'currency', currency: 'TRY', minimumFractionDigits: 0, maximumFractionDigits: 0 }).format(Math.round(val || 0));
   const getDayName = (dayIdx: number) => ["Paz", "Pzt", "Sal", "Çar", "Per", "Cum", "Cmt"][dayIdx];
 
   if (loading) {
       return (
-          <div className="bg-white rounded-3xl p-8 border border-slate-200 shadow-sm flex flex-col items-center justify-center min-h-[300px]">
+          <div className="bg-white rounded-[1.5rem] p-8 border border-slate-100 shadow-sm flex flex-col items-center justify-center min-h-[250px]">
               <div className="w-8 h-8 border-4 border-indigo-200 border-t-indigo-600 rounded-full animate-spin mb-4"></div>
-              <p className="text-xs font-black text-slate-400 uppercase tracking-widest animate-pulse">Hedef Rotası Hesaplanıyor...</p>
+              <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest animate-pulse">Operasyon Rotası Hesaplanıyor...</p>
           </div>
       );
   }
 
   if (!motorData || !motorData.daily || motorData.daily.length === 0) return null;
-  
-  return (
-    <div className="bg-white rounded-[1.5rem] p-4 md:p-5 border border-slate-100 shadow-sm flex flex-col md:flex-row gap-4 items-stretch">
-        
-        {/* ANA GÜNLÜK ROTA (Sol Taraf - Daha Geniş) */}
-        <div className="flex-1 bg-gradient-to-br from-indigo-50 to-blue-50 rounded-2xl p-5 border border-indigo-100/50 flex flex-col justify-center relative overflow-hidden">
-            <div className="absolute -right-10 -top-10 text-indigo-100/50">
-               <svg className="w-40 h-40" fill="currentColor" viewBox="0 0 24 24"><path d="M12 2L2 22h20L12 2zm0 4.5l6.5 13h-13L12 6.5z"/></svg>
-            </div>
-            <div className="relative z-10">
-                <span className="bg-indigo-600 text-white px-3 py-1 rounded-full text-[9px] font-black uppercase tracking-widest shadow-sm">Operasyon Rotası</span>
-                <h3 className="text-sm font-bold text-indigo-900 mt-4 mb-1">Günlük Hedef (Sistem Önerisi)</h3>
-                <h2 className="text-3xl md:text-4xl font-black tracking-tighter text-indigo-950">
-                    {formatMoney(dailyTarget)}
-                </h2>
-            </div>
-        </div>
 
-        {/* MİNİ HEDEF KUTULARI (Sağ Taraf - Alt Alta Sıkıştırılmış) */}
-        <div className="flex flex-col gap-3 w-full md:w-64 flex-shrink-0">
-            {/* %85 Hedefi */}
-            <div className="bg-amber-50 rounded-2xl p-4 border border-amber-100/50 flex items-center justify-between h-full">
-                <div>
-                    <p className="text-[10px] font-black text-amber-600 uppercase tracking-widest">%85 Barajı</p>
-                    <p className="text-xs font-bold text-amber-800/70 mt-0.5">Kalan Günlük</p>
-                </div>
-                <h4 className="text-lg font-black text-amber-900">{formatMoney(target85)}</h4>
-            </div>
-            
-            {/* %95 Hedefi */}
-            <div className="bg-emerald-50 rounded-2xl p-4 border border-emerald-100/50 flex items-center justify-between h-full">
-                <div>
-                    <p className="text-[10px] font-black text-emerald-600 uppercase tracking-widest">%95 Barajı</p>
-                    <p className="text-xs font-bold text-emerald-800/70 mt-0.5">Kalan Günlük</p>
-                </div>
-                <h4 className="text-lg font-black text-emerald-900">{formatMoney(target95)}</h4>
-            </div>
-        </div>
-        
+  return (
+    <div className="bg-white rounded-[1.5rem] border border-slate-100 shadow-sm flex flex-col overflow-hidden">
+      
+      {/* 🚀 ÜST BAŞLIK */}
+      <div className="p-5 border-b border-slate-100 flex flex-col sm:flex-row justify-between items-start sm:items-center bg-slate-50/50 gap-4">
+         <div>
+            <h3 className="text-lg font-black text-slate-800 tracking-tight flex items-center gap-2">
+               🎯 Günlük Operasyon <span className="text-indigo-600 italic">Rotası</span>
+            </h3>
+            <p className="text-[9px] font-bold text-slate-400 uppercase tracking-widest mt-0.5">Prim Eşikleri ve Gelecek Günler</p>
+         </div>
+         <Link href="/dashboard/targets" className="px-4 py-2 bg-white border border-slate-200 rounded-xl text-[10px] font-black uppercase tracking-widest text-slate-600 hover:border-indigo-500 hover:text-indigo-600 hover:shadow-md transition-all">
+            Detaylı Analiz →
+         </Link>
+      </div>
+
+      {/* 🚀 5'Lİ PRİM EŞİKLERİ (KOMPAKT GRID) */}
+      <div className="p-4 md:p-5 border-b border-slate-100 bg-white">
+         <div className="grid grid-cols-2 md:grid-cols-5 gap-3">
+            {dailyRemainingStats.map((stat, i) => (
+               <div key={i} className={`p-4 rounded-2xl border transition-all flex flex-col justify-center h-full ${stat.isReached ? 'bg-emerald-500 border-emerald-500 text-white shadow-md shadow-emerald-200' : 'bg-slate-50 border-slate-100 hover:border-indigo-200 hover:bg-white'}`}>
+                  <p className={`text-[10px] font-black uppercase tracking-widest mb-1.5 ${stat.isReached ? 'text-emerald-100' : 'text-slate-500'}`}>
+                     {stat.label} HEDEFİ
+                  </p>
+                  {stat.isReached ? (
+                     <div className="text-sm font-black flex items-center gap-1.5 mt-1">
+                        <span className="w-4 h-4 bg-white rounded-full flex items-center justify-center text-emerald-600 text-[10px]">✓</span>
+                        AŞILDI
+                     </div>
+                  ) : (
+                     <>
+                        <h4 className="text-lg lg:text-xl font-black text-slate-900 leading-none">{formatMoney(stat.dailyNeeded)}</h4>
+                        <p className="text-[8px] font-bold text-slate-400 uppercase mt-1">Kalan Günlük Ort.</p>
+                     </>
+                  )}
+               </div>
+            ))}
+         </div>
+      </div>
+
+      {/* 🚀 TABLO KISMI (DARALTILMIŞ VE İÇTEN KAYDIRMALI) */}
+      <div className="overflow-x-auto max-h-[280px] scrollbar-thin scrollbar-thumb-slate-200 bg-slate-50/30">
+         <table className="w-full text-left whitespace-nowrap">
+            <thead className="sticky top-0 bg-slate-100/95 backdrop-blur-md z-10 shadow-sm">
+               <tr className="text-[9px] font-black text-slate-500 uppercase tracking-widest">
+                  <th className="py-3 px-6">Tarih ve Bağlam</th>
+                  <th className="py-3 px-6 text-right">Tahmin (AI)</th>
+                  <th className="py-3 px-6 text-right border-l border-slate-200/50">Sistem Hedefi</th>
+               </tr>
+            </thead>
+            <tbody className="divide-y divide-slate-100">
+               {upcomingDays.map((row: any, idx: number) => {
+                  const isToday = row.day === today;
+                  
+                  return (
+                     <tr key={idx} className={`group ${isToday ? 'bg-indigo-50/80' : 'hover:bg-white'} transition-colors`}>
+                        <td className="py-3 px-6">
+                           <div className="flex items-center gap-2.5">
+                              {isToday && <span className="w-1.5 h-1.5 rounded-full bg-indigo-600 animate-pulse"></span>}
+                              <div className={`font-black text-xs ${isToday ? 'text-indigo-900' : 'text-slate-700'}`}>
+                                 {row.day} {getDayName(row.dayOfWeek)}
+                              </div>
+                              {row.context !== "Standart" && (
+                                 <div className={`text-[9px] font-bold uppercase px-1.5 py-0.5 rounded ${row.isSpecial ? 'bg-amber-100 text-amber-700' : 'bg-slate-200 text-slate-500'}`}>
+                                    {row.isSpecial && "✦ "} {row.context}
+                                 </div>
+                              )}
+                           </div>
+                        </td>
+                        <td className="py-3 px-6 text-right font-mono">
+                           <div className="flex items-center justify-end gap-1.5">
+                              <span className={`text-[8px] px-1 py-0.5 rounded font-black italic ${isToday ? 'bg-indigo-200 text-indigo-700' : 'bg-slate-200 text-slate-500'}`}>AI</span>
+                              <span className={`text-sm font-bold italic ${isToday ? 'text-indigo-700' : 'text-slate-500'}`}>
+                                 {formatMoney(row.mlPrediction)}
+                              </span>
+                           </div>
+                        </td>
+                        <td className="py-3 px-6 text-right font-mono border-l border-slate-100/50">
+                           <span className={`text-sm font-black ${isToday ? 'text-indigo-900 text-base' : 'text-slate-800'}`}>
+                              {formatMoney(row.dailyTargetMl)}
+                           </span>
+                        </td>
+                     </tr>
+                  );
+               })}
+            </tbody>
+         </table>
+         {upcomingDays.length === 0 && (
+             <div className="py-8 text-center text-xs font-bold text-slate-400 uppercase tracking-widest">
+                 Bu ay için gösterilecek gün kalmadı.
+             </div>
+         )}
+      </div>
     </div>
   );
 }
