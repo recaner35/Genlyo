@@ -2,38 +2,35 @@
 
 export default function OwaMailCard({ reportEmail, setReportEmail, owaLink, handleSaveEmail, disabled }: any) {
   return (
-    <div className="bg-white rounded-[2rem] p-8 border border-slate-100 shadow-sm flex flex-col justify-between">
+    <div className="bg-gradient-to-br from-amber-50 to-orange-50 rounded-3xl p-6 border border-amber-100 shadow-sm flex flex-col justify-between h-full">
        <div>
-          <h3 className="text-lg font-black text-slate-800 leading-tight mb-1">Mail Raporu</h3>
-          <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-6">OWA Entegrasyonu</p>
+          <h3 className="text-base font-black text-amber-900 leading-tight mb-1">Mail Raporu</h3>
+          <p className="text-[9px] font-bold text-amber-600/70 uppercase tracking-widest mb-4">OWA Entegrasyonu</p>
           
           {disabled ? (
-              <div className="bg-slate-50 border border-slate-100 p-6 rounded-2xl text-center h-full flex items-center justify-center">
-                 <p className="text-slate-500 font-bold text-sm">Şablon için <strong>Mağaza</strong> seçiniz.</p>
+              <div className="bg-amber-100/50 p-4 rounded-xl text-center flex-1 flex items-center justify-center">
+                 <p className="text-amber-800 font-bold text-[10px] uppercase">Şablon için mağaza seçiniz.</p>
               </div>
           ) : (
-              <>
-                <div className="flex items-center gap-2 mb-4">
+              <div className="mt-auto">
+                <div className="flex items-center gap-2 mb-3">
                   <input 
-                    type="email" 
-                    value={reportEmail} 
-                    onChange={e => setReportEmail(e.target.value)}
+                    type="email" value={reportEmail} onChange={e => setReportEmail(e.target.value)}
                     placeholder="Alıcı adresi..."
-                    className="flex-1 bg-slate-50 border border-slate-100 rounded-xl px-4 py-4 text-sm font-bold text-slate-700 outline-none focus:border-indigo-300"
+                    className="flex-1 bg-white border border-amber-100 rounded-xl px-3 py-3 text-xs font-bold text-amber-900 outline-none focus:border-amber-300 shadow-inner"
                   />
-                  <button onClick={handleSaveEmail} className="bg-slate-800 text-white px-4 py-4 rounded-xl font-black shadow-md hover:bg-slate-700 transition-all text-xs uppercase tracking-wider">
+                  <button onClick={handleSaveEmail} className="bg-amber-800 text-white px-3 py-3 rounded-xl font-black shadow-md hover:bg-amber-700 transition-all text-[10px] uppercase">
                     KAYDET
                   </button>
                 </div>
                 <a 
-                  href={reportEmail ? owaLink : '#'}
-                  target="_blank" rel="noopener noreferrer"
-                  onClick={(e) => { if(!reportEmail) { e.preventDefault(); alert('Lütfen önce bir mail adresi kaydedin.'); } }}
-                  className={`w-full text-white py-4 rounded-2xl font-black text-xs uppercase tracking-widest text-center flex items-center justify-center transition-colors ${reportEmail ? 'bg-blue-600 hover:bg-blue-700' : 'bg-slate-300 cursor-not-allowed'}`}
+                  href={reportEmail ? owaLink : '#'} target="_blank" rel="noopener noreferrer"
+                  onClick={(e) => { if(!reportEmail) { e.preventDefault(); alert('Mail adresi kaydedin.'); } }}
+                  className={`w-full text-white py-3 rounded-xl font-black text-[10px] uppercase tracking-widest text-center flex items-center justify-center transition-colors shadow-md ${reportEmail ? 'bg-amber-600 hover:bg-amber-700' : 'bg-slate-300 cursor-not-allowed'}`}
                 >
                   ✉️ GÖNDERİME HAZIRLA
                 </a>
-              </>
+              </div>
           )}
        </div>
     </div>

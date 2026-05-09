@@ -2,53 +2,41 @@
 
 export default function FutureProjections({ data, formatMoney }: any) {
   return (
-    <section className="grid grid-cols-1 lg:grid-cols-2 gap-8">
-       {/* Ciro Projeksiyonu */}
-       <div className="bg-white rounded-[2rem] p-10 border border-slate-100 shadow-sm flex flex-col justify-between">
-          <div>
-            <h3 className="text-xl font-black text-slate-800 mb-8">Projeksiyon <span className="text-sm font-bold text-slate-400 ml-2">({data.nextMonthName})</span></h3>
-            <div className="space-y-6">
-               <div className="flex justify-between items-center pb-4 border-b border-slate-50">
-                  <span className="text-sm font-bold text-slate-500">Motor 1 Tahmini</span>
-                  <span className="font-mono font-black">{formatMoney(data.m1Sales)}</span>
+    <section className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+       <div className="bg-gradient-to-br from-violet-50 to-purple-50 rounded-3xl p-6 border border-violet-100 shadow-sm flex flex-col justify-between">
+            <h3 className="text-base font-black text-violet-900 mb-4">Gelecek Ay Projeksiyonu <span className="text-[10px] font-bold text-violet-600/70 ml-2">({data.nextMonthName})</span></h3>
+            <div className="space-y-3">
+               <div className="flex justify-between items-center pb-2 border-b border-violet-200/50">
+                  <span className="text-xs font-bold text-violet-700">Motor 1 Tahmini</span>
+                  <span className="font-mono font-black text-violet-950">{formatMoney(data.m1Sales)}</span>
                </div>
-               <div className="flex justify-between items-center pb-4 border-b border-slate-50">
-                  <span className="text-sm font-bold text-slate-500">Motor 2 Tahmini</span>
-                  <span className="font-mono font-black">{formatMoney(data.m2Sales)}</span>
+               <div className="flex justify-between items-center pb-2 border-b border-violet-200/50">
+                  <span className="text-xs font-bold text-violet-700">Motor 2 Tahmini</span>
+                  <span className="font-mono font-black text-violet-950">{formatMoney(data.m2Sales)}</span>
                </div>
-               <div className="flex justify-between items-center pt-4 text-indigo-600">
-                  <span className="text-lg font-black uppercase tracking-tighter">Hibrit Öngörü</span>
-                  <span className="text-2xl font-black">{formatMoney(data.hybridSales)}</span>
+               <div className="flex justify-between items-center pt-2 text-violet-600">
+                  <span className="text-sm font-black uppercase tracking-tighter">Hibrit Öngörü</span>
+                  <span className="text-xl font-black">{formatMoney(data.hybridSales)}</span>
                </div>
             </div>
-          </div>
-          <p className="text-xs font-bold text-slate-400 mt-8 leading-relaxed italic">
-            * Motor 1'in tarihsel büyüme ivmesi ile Motor 2'nin makine öğrenmesi simülasyonlarının ortalamasıdır.
-          </p>
        </div>
 
-       {/* Hedef Önerisi */}
-       <div className="bg-white rounded-[2rem] p-10 border border-slate-100 shadow-sm flex flex-col justify-between">
-          <div>
-            <h3 className="text-xl font-black text-slate-800 mb-8">Stratejik Hedef <span className="text-sm font-bold text-slate-400 ml-2">({data.nextMonthName})</span></h3>
-            <div className="space-y-6">
-               <div className="flex justify-between items-center pb-4 border-b border-slate-50">
-                  <span className="text-sm font-bold text-slate-500">Motor 1 Önerisi</span>
-                  <span className="font-mono font-black">{formatMoney(data.m1Target)}</span>
+       <div className="bg-gradient-to-br from-fuchsia-50 to-pink-50 rounded-3xl p-6 border border-fuchsia-100 shadow-sm flex flex-col justify-between">
+            <h3 className="text-base font-black text-fuchsia-900 mb-4">Stratejik Hedef Önerisi <span className="text-[10px] font-bold text-fuchsia-600/70 ml-2">({data.nextMonthName})</span></h3>
+            <div className="space-y-3">
+               <div className="flex justify-between items-center pb-2 border-b border-fuchsia-200/50">
+                  <span className="text-xs font-bold text-fuchsia-700">Analitik Analiz Önerisi</span>
+                  <span className="font-mono font-black text-fuchsia-950">{formatMoney(data.m1Target)}</span>
                </div>
-               <div className="flex justify-between items-center pb-4 border-b border-slate-50">
-                  <span className="text-sm font-bold text-slate-500">Motor 2 Önerisi</span>
-                  <span className="font-mono font-black">{formatMoney(data.m2Target)}</span>
+               <div className="flex justify-between items-center pb-2 border-b border-fuchsia-200/50">
+                  <span className="text-xs font-bold text-fuchsia-700">YZ Önerisi</span>
+                  <span className="font-mono font-black text-fuchsia-950">{formatMoney(data.m2Target)}</span>
                </div>
-               <div className="flex justify-between items-center pt-4 text-emerald-600">
-                  <span className="text-lg font-black uppercase tracking-tighter">Genlyo Tavsiyesi</span>
-                  <span className="text-2xl font-black">{formatMoney(data.hybridTarget)}</span>
+               <div className="flex justify-between items-center pt-2 text-pink-600">
+                  <span className="text-sm font-black uppercase tracking-tighter">Genlyo Tavsiyesi</span>
+                  <span className="text-xl font-black">{formatMoney(data.hybridTarget)}</span>
                </div>
             </div>
-          </div>
-          <p className="text-xs font-bold text-slate-400 mt-8 leading-relaxed italic">
-            * Yönetim stratejisi ve yapay zeka öngörüleri harmanlanarak en optimum baraj olarak tavsiye edilmektedir.
-          </p>
        </div>
     </section>
   );

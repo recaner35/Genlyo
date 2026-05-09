@@ -2,7 +2,7 @@
 
 import { useMemo } from "react";
 
-const PIE_COLORS = ["#6366f1", "#8b5cf6", "#ec4899", "#f59e0b", "#10b981", "#06b6d4"];
+const PIE_COLORS = ["#6366f1", "#f65c7d", "#37abce", "#f59e0b", "#10b981", "#06b6d4"];
 
 export default function PersonnelPerformanceCard({ 
     personnelSales, 
@@ -40,15 +40,14 @@ export default function PersonnelPerformanceCard({
 
     // QR Kod URL'si (iOS/Android Uyumlu)
     const qrCodeUrl = `https://api.qrserver.com/v1/create-qr-code/?size=300x300&data=${encodeURIComponent(generatedReportText)}`;
-
+    
     return (
-        <div className="bg-white rounded-3xl p-8 border border-slate-200 shadow-xl flex flex-col relative overflow-hidden h-full">
-            <h3 className="text-xl font-black mb-2">Personel Dağılımı</h3>
-            <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-4">Paylaşıma Hazır Rapor</p>
+        <div className="bg-gradient-to-br from-cyan-50 to-sky-50 rounded-3xl p-6 border border-cyan-100 shadow-sm flex flex-col h-full relative overflow-hidden">
+            <h3 className="text-base font-black text-cyan-900 mb-1">Personel Dağılımı</h3>
+            <p className="text-[9px] font-bold text-cyan-600/70 uppercase tracking-widest mb-4">Paylaşıma Hazır Rapor</p>
             
-            <div className="flex items-center gap-6 mb-4 flex-1">
-                {/* SVG PASTA GRAFİK */}
-                <div className="relative w-16 h-16 flex-shrink-0">
+            <div className="flex items-center gap-4 flex-1">
+                <div className="relative w-12 h-12 flex-shrink-0">
                     <svg viewBox="0 0 36 36" className="w-full h-full transform -rotate-90">
                         {personnelSales.length > 0 ? (
                             personnelSales.map((p, i) => {
@@ -56,33 +55,30 @@ export default function PersonnelPerformanceCard({
                                 const percentage = total > 0 ? (p.ownRevenue / total) * 100 : 0;
                                 const offset = personnelSales.slice(0, i).reduce((acc, curr) => acc + (curr.ownRevenue / total) * 100, 0);
                                 return (
-                                    <circle key={i} cx="18" cy="18" r="15.9" fill="transparent" stroke={PIE_COLORS[i % PIE_COLORS.length]} strokeWidth="3.5"
+                                    <circle key={i} cx="18" cy="18" r="15.9" fill="transparent" stroke={PIE_COLORS[i % PIE_COLORS.length]} strokeWidth="4"
                                         strokeDasharray={`${percentage} ${100 - percentage}`} strokeDashoffset={-offset} className="transition-all duration-1000 ease-out" />
                                 );
                             })
                         ) : (
-                            <circle cx="18" cy="18" r="15.9" fill="transparent" stroke="#f1f5f9" strokeWidth="3.5" />
+                            <circle cx="18" cy="18" r="15.9" fill="transparent" stroke="#cffafe" strokeWidth="4" />
                         )}
                     </svg>
-                    <div className="absolute inset-0 flex items-center justify-center text-[8px] font-black text-slate-400 uppercase tracking-tighter">Ekip</div>
                 </div>
 
-                <div className="flex-1 space-y-1">
+                <div className="flex-1 space-y-1 min-w-0">
                     {personnelSales.slice(0, 3).map((p, i) => (
-                        <div key={i} className="flex items-center gap-2 text-[10px] font-bold">
-                            <span className="w-2 h-2 rounded-full" style={{ backgroundColor: PIE_COLORS[i % PIE_COLORS.length] }}></span>
-                            <span className="text-slate-600 truncate">{p.personnel?.firstName}</span>
-                            <span className="ml-auto text-indigo-600">%{((p.ownRevenue / (hybridRealizedSales || 1)) * 100).toFixed(1)}</span>
+                        <div key={i} className="flex items-center gap-1.5 text-[9px] font-bold">
+                            <span className="w-1.5 h-1.5 rounded-full" style={{ backgroundColor: PIE_COLORS[i % PIE_COLORS.length] }}></span>
+                            <span className="text-cyan-900 truncate">{p.personnel?.firstName}</span>
+                            <span className="ml-auto text-cyan-700">%{((p.ownRevenue / (hybridRealizedSales || 1)) * 100).toFixed(1)}</span>
                         </div>
                     ))}
                 </div>
             </div>
 
-            {/* iOS & Android Uyumlu QR KODU */}
-            <div className="mt-auto flex flex-col items-center justify-center pt-3 border-t border-slate-100">
-                <p className="text-[9px] font-bold text-slate-400 mb-2 uppercase tracking-widest text-center">Kameradan Okutup Kopyalayın</p>
-                <img src={qrCodeUrl} alt="QR Code" className="w-24 h-24 object-contain rounded-lg shadow-sm border border-slate-100 p-1" />
+            <div className="mt-4 flex justify-between items-center pt-3 border-t border-cyan-200/50">
+                <p className="text-[8px] font-black text-cyan-700/70 uppercase tracking-widest text-left w-20 leading-tight">Okutup<br/>Kopyala</p>
+                <img src={qrCodeUrl} alt="QR Code" className="w-10 h-10 object-contain rounded shadow-sm border border-cyan-100" />
             </div>
         </div>
     );
-}
