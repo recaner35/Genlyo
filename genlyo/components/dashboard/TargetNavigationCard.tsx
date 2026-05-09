@@ -34,11 +34,8 @@ export default function TargetNavigationCard() {
 
   const dailyRemainingStats = useMemo(() => {
     if (!motorData || !motorData.daily) return [];
-    
-    // API'den gelen asıl hedefi buluyoruz (Eğer yoksa 0)
     const T = motorData.summary?.currentMonthTarget || motorData.summary?.targetAmount || 0;
     const S_mtd = motorData.daily.reduce((acc: number, curr: any) => acc + (curr.actualRevenue || 0), 0);
-    
     const totalDaysInMonth = new Date(currentYear, currentMonth, 0).getDate();
     const passedDays = motorData.daily.filter((d: any) => d.actualRevenue > 0).length;
     const remainingDays = Math.max(1, totalDaysInMonth - passedDays);
@@ -46,128 +43,90 @@ export default function TargetNavigationCard() {
     return PRIM_THRESHOLDS.map(threshold => {
         const thresholdTarget = T * threshold;
         const remainingToThreshold = thresholdTarget - S_mtd;
-        const dailyNeeded = remainingToThreshold > 0 ? remainingToThreshold / remainingDays : 0;
         return {
             label: `%${Math.round(threshold * 100)}`,
-            totalToReach: thresholdTarget,
-            dailyNeeded: dailyNeeded,
+            dailyNeeded: remainingToThreshold > 0 ? remainingToThreshold / remainingDays : 0,
             isReached: remainingToThreshold <= 0 && T > 0
         };
     });
   }, [motorData, currentYear, currentMonth]);
 
-  const upcomingDays = useMemo(() => {
+  // 🚀 SADECE 3 GÜNLÜK FOKUS (Bugün, Yarın, Sonraki)
+  const focalDays = useMemo(() => {
     if (!motorData || !motorData.daily) return [];
-    return motorData.daily.filter((row: any) => row.day >= today);
+    return motorData.daily
+      .filter((row: any) => row.day >= today)
+      .slice(0, 3);
   }, [motorData, today]);
 
   const formatMoney = (val: number) => new Intl.NumberFormat('tr-TR', { style: 'currency', currency: 'TRY', minimumFractionDigits: 0, maximumFractionDigits: 0 }).format(Math.round(val || 0));
-  const getDayName = (dayIdx: number) => ["Paz", "Pzt", "Sal", "Çar", "Per", "Cum", "Cmt"][dayIdx];
+  const getDayLabel = (day: number) => {
+      if (day === today) return "BUGÜN";
+      if (day === today + 1) return "YARIN";
+      return "SONRAKİ GÜN";
+  };
 
-  if (loading) {
-      return (
-          <div className="bg-white rounded-[1.5rem] p-8 border border-slate-100 shadow-sm flex flex-col items-center justify-center min-h-[250px]">
-              <div className="w-8 h-8 border-4 border-indigo-200 border-t-indigo-600 rounded-full animate-spin mb-4"></div>
-              <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest animate-pulse">Operasyon Rotası Hesaplanıyor...</p>
-          </div>
-      );
-  }
-
+  if (loading) return null; // Ana sayfa yüklenirken zıplama yapmasın diye loading'i sessiz geçebiliriz
   if (!motorData || !motorData.daily || motorData.daily.length === 0) return null;
 
   return (
-    <div className="bg-white rounded-[1.5rem] border border-slate-100 shadow-sm flex flex-col overflow-hidden">
+    <div className="flex flex-col lg:flex-row gap-4 items-stretch">
       
-      {/* 🚀 ÜST BAŞLIK */}
-      <div className="p-5 border-b border-slate-100 flex flex-col sm:flex-row justify-between items-start sm:items-center bg-slate-50/50 gap-4">
-         <div>
-            <h3 className="text-lg font-black text-slate-800 tracking-tight flex items-center gap-2">
-               🎯 Günlük Operasyon <span className="text-indigo-600 italic">Rotası</span>
+      {/* 🚀 SOL TARAF: EŞİK ROZETLERİ (DİKEY ŞERİT) */}
+      <div className="lg:w-1/3 grid grid-cols-2 sm:grid-cols-5 lg:grid-cols-1 gap-2">
+        {dailyRemainingStats.map((stat, i) => (
+          <div key={i} className={`px-4 py-3 rounded-2xl border flex items-center justify-between transition-all ${stat.isReached ? 'bg-emerald-500 border-emerald-400 text-white shadow-sm' : 'bg-white border-slate-100 shadow-sm'}`}>
+            <span className={`text-[10px] font-black ${stat.isReached ? 'text-white' : 'text-slate-400'}`}>{stat.label}</span>
+            <div className="text-right">
+              {stat.isReached ? (
+                 <span className="text-[10px] font-black">HEDEF AŞILDI ✓</span>
+              ) : (
+                 <span className={`text-xs font-black ${stat.isReached ? 'text-white' : 'text-slate-700'}`}>{formatMoney(stat.dailyNeeded)}</span>
+              )}
+            </div>
+          </div>
+        ))}
+      </div>
+
+      {/* 🚀 SAĞ TARAF: 3 GÜNLÜK OPERASYON ROTASI */}
+      <div className="flex-1 bg-white rounded-[2rem] border border-slate-100 shadow-sm p-4 flex flex-col justify-between">
+        <div className="flex justify-between items-center mb-4 px-2">
+            <h3 className="text-sm font-black text-slate-800 tracking-tight flex items-center gap-2">
+               🎯 Operasyon <span className="text-indigo-600 italic">Rotası (3 Gün)</span>
             </h3>
-            <p className="text-[9px] font-bold text-slate-400 uppercase tracking-widest mt-0.5">Prim Eşikleri ve Gelecek Günler</p>
-         </div>
-         <Link href="/dashboard/targets" className="px-4 py-2 bg-white border border-slate-200 rounded-xl text-[10px] font-black uppercase tracking-widest text-slate-600 hover:border-indigo-500 hover:text-indigo-600 hover:shadow-md transition-all">
-            Detaylı Analiz →
-         </Link>
+            <Link href="/dashboard/targets" className="text-[10px] font-black text-indigo-500 hover:text-indigo-700 uppercase tracking-widest bg-indigo-50 px-3 py-1.5 rounded-lg transition-all">
+               Tüm Ayı Gör →
+            </Link>
+        </div>
+
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+          {focalDays.map((row: any, idx: number) => (
+            <div key={idx} className={`p-4 rounded-2xl border transition-all ${row.day === today ? 'bg-indigo-600 text-white border-indigo-500 shadow-indigo-100 shadow-lg' : 'bg-slate-50 border-slate-100'}`}>
+              <div className="flex justify-between items-start mb-2">
+                <span className={`text-[9px] font-black uppercase tracking-tighter ${row.day === today ? 'text-indigo-200' : 'text-slate-400'}`}>
+                   {getDayLabel(row.day)}
+                </span>
+                <span className={`text-[9px] px-1.5 py-0.5 rounded font-black italic ${row.day === today ? 'bg-white/20 text-white' : 'bg-slate-200 text-slate-500'}`}>AI</span>
+              </div>
+              
+              <div className="space-y-0.5">
+                <p className={`text-[10px] font-bold ${row.day === today ? 'text-indigo-100' : 'text-slate-500'}`}>Sistem Hedefi</p>
+                <h4 className="text-lg font-black tracking-tight">{formatMoney(row.dailyTargetMl)}</h4>
+              </div>
+              
+              {row.context !== "Standart" && (
+                <div className={`mt-2 text-[8px] font-black uppercase px-2 py-0.5 rounded-md inline-block ${row.day === today ? 'bg-white/10 text-white' : 'bg-white border border-slate-200 text-slate-400'}`}>
+                  {row.context}
+                </div>
+              )}
+            </div>
+          ))}
+          {focalDays.length === 0 && (
+             <div className="col-span-3 py-10 text-center text-[10px] font-bold text-slate-400 uppercase">Veri bulunamadı.</div>
+          )}
+        </div>
       </div>
 
-      {/* 🚀 5'Lİ PRİM EŞİKLERİ (KOMPAKT GRID) */}
-      <div className="p-4 md:p-5 border-b border-slate-100 bg-white">
-         <div className="grid grid-cols-2 md:grid-cols-5 gap-3">
-            {dailyRemainingStats.map((stat, i) => (
-               <div key={i} className={`p-4 rounded-2xl border transition-all flex flex-col justify-center h-full ${stat.isReached ? 'bg-emerald-500 border-emerald-500 text-white shadow-md shadow-emerald-200' : 'bg-slate-50 border-slate-100 hover:border-indigo-200 hover:bg-white'}`}>
-                  <p className={`text-[10px] font-black uppercase tracking-widest mb-1.5 ${stat.isReached ? 'text-emerald-100' : 'text-slate-500'}`}>
-                     {stat.label} HEDEFİ
-                  </p>
-                  {stat.isReached ? (
-                     <div className="text-sm font-black flex items-center gap-1.5 mt-1">
-                        <span className="w-4 h-4 bg-white rounded-full flex items-center justify-center text-emerald-600 text-[10px]">✓</span>
-                        AŞILDI
-                     </div>
-                  ) : (
-                     <>
-                        <h4 className="text-lg lg:text-xl font-black text-slate-900 leading-none">{formatMoney(stat.dailyNeeded)}</h4>
-                        <p className="text-[8px] font-bold text-slate-400 uppercase mt-1">Kalan Günlük Ort.</p>
-                     </>
-                  )}
-               </div>
-            ))}
-         </div>
-      </div>
-
-      {/* 🚀 TABLO KISMI (DARALTILMIŞ VE İÇTEN KAYDIRMALI) */}
-      <div className="overflow-x-auto max-h-[280px] scrollbar-thin scrollbar-thumb-slate-200 bg-slate-50/30">
-         <table className="w-full text-left whitespace-nowrap">
-            <thead className="sticky top-0 bg-slate-100/95 backdrop-blur-md z-10 shadow-sm">
-               <tr className="text-[9px] font-black text-slate-500 uppercase tracking-widest">
-                  <th className="py-3 px-6">Tarih ve Bağlam</th>
-                  <th className="py-3 px-6 text-right">Tahmin (AI)</th>
-                  <th className="py-3 px-6 text-right border-l border-slate-200/50">Sistem Hedefi</th>
-               </tr>
-            </thead>
-            <tbody className="divide-y divide-slate-100">
-               {upcomingDays.map((row: any, idx: number) => {
-                  const isToday = row.day === today;
-                  
-                  return (
-                     <tr key={idx} className={`group ${isToday ? 'bg-indigo-50/80' : 'hover:bg-white'} transition-colors`}>
-                        <td className="py-3 px-6">
-                           <div className="flex items-center gap-2.5">
-                              {isToday && <span className="w-1.5 h-1.5 rounded-full bg-indigo-600 animate-pulse"></span>}
-                              <div className={`font-black text-xs ${isToday ? 'text-indigo-900' : 'text-slate-700'}`}>
-                                 {row.day} {getDayName(row.dayOfWeek)}
-                              </div>
-                              {row.context !== "Standart" && (
-                                 <div className={`text-[9px] font-bold uppercase px-1.5 py-0.5 rounded ${row.isSpecial ? 'bg-amber-100 text-amber-700' : 'bg-slate-200 text-slate-500'}`}>
-                                    {row.isSpecial && "✦ "} {row.context}
-                                 </div>
-                              )}
-                           </div>
-                        </td>
-                        <td className="py-3 px-6 text-right font-mono">
-                           <div className="flex items-center justify-end gap-1.5">
-                              <span className={`text-[8px] px-1 py-0.5 rounded font-black italic ${isToday ? 'bg-indigo-200 text-indigo-700' : 'bg-slate-200 text-slate-500'}`}>AI</span>
-                              <span className={`text-sm font-bold italic ${isToday ? 'text-indigo-700' : 'text-slate-500'}`}>
-                                 {formatMoney(row.mlPrediction)}
-                              </span>
-                           </div>
-                        </td>
-                        <td className="py-3 px-6 text-right font-mono border-l border-slate-100/50">
-                           <span className={`text-sm font-black ${isToday ? 'text-indigo-900 text-base' : 'text-slate-800'}`}>
-                              {formatMoney(row.dailyTargetMl)}
-                           </span>
-                        </td>
-                     </tr>
-                  );
-               })}
-            </tbody>
-         </table>
-         {upcomingDays.length === 0 && (
-             <div className="py-8 text-center text-xs font-bold text-slate-400 uppercase tracking-widest">
-                 Bu ay için gösterilecek gün kalmadı.
-             </div>
-         )}
-      </div>
     </div>
   );
 }
