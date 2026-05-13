@@ -16,7 +16,7 @@ const DENOMINATIONS = [
   { label: "10 ₺", value: 10, type: "TL" }, { label: "5 ₺", value: 5, type: "TL" },
   { label: "1 ₺", value: 1, type: "TL" }, { label: "0.50 ₺", value: 0.5, type: "TL" },
   { label: "0.25 ₺", value: 0.25, type: "TL" }, { label: "0.10 ₺", value: 0.1, type: "TL" },
-  { label: "Dolar ($)", value: 1, type: "USD" }, { label: "Euro (€)", value: 1, type: "EUR" },
+  { label: "Dolar", value: 1, type: "USD" }, { label: "Euro", value: 1, type: "EUR" },
 ];
 
 export default function DailyTasksPage() {
@@ -34,16 +34,21 @@ export default function DailyTasksPage() {
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [isCopied, setIsCopied] = useState(false);
   const inputRefs = useRef<(HTMLInputElement | null)[]>([]);
+  const persInputRefs = useRef<(HTMLInputElement | null)[]>([]);
 
-  // KART STATE'LERİ (QuickSave, OwaMail, Personnel)
+  // KART STATE'LERİ
   const [myStoreId, setMyStoreId] = useState<string | null>(null);
   const [storeName, setStoreName] = useState<string>("Mağaza");
   const [quickRevenue, setQuickRevenue] = useState("");
   const [isSavingQuick, setIsSavingQuick] = useState(false);
   const [reportEmail, setReportEmail] = useState("");
-  const [personnelSales, setPersonnelSales] = useState<any[]>([]);
   const [hybridRealizedSales, setHybridRealizedSales] = useState(0);
   const [currentMonthTarget, setCurrentMonthTarget] = useState(0);
+
+  // 🚀 YENİ: PERSONEL CİRO STATE'LERİ VE SÜRÜKLE BIRAK
+  const [orderedPersonnel, setOrderedPersonnel] = useState<any[]>([]);
+  const [draggedIndex, setDraggedIndex] = useState<number | null>(null);
+  const [isSavingPersonnel, setIsSavingPersonnel] = useState(false);
 
   const today = new Date();
   const currentDay = today.getDate();
@@ -58,7 +63,7 @@ export default function DailyTasksPage() {
           fetch('/api/personnel'),
           fetch('/api/daily-tasks', { cache: 'no-store' }),
           fetch(`/api/sales?year=${currentYear}&month=${currentMonth}&_t=${Date.now()}`, { cache: 'no-store' }),
-          fetch(`/api/dashboard/hybrid?level=STORE&filterId=ALL`) // Hedef için
+          fetch(`/api/dashboard/hybrid?level=STORE&filterId=ALL`) 
         ]);
 
         if (resP.ok) setPersonnels(await resP.json());
@@ -80,7 +85,6 @@ export default function DailyTasksPage() {
            if (sData.allowedStoreId) {
                setMyStoreId(sData.allowedStoreId);
                setReportEmail(localStorage.getItem(`genlyo_mail_${sData.allowedStoreId}`) || "");
-               
                const totalRev = salesArray.reduce((acc: number, curr: any) => acc + Number(curr.revenue), 0);
                setHybridRealizedSales(totalRev);
 
@@ -96,7 +100,6 @@ export default function DailyTasksPage() {
            setCurrentMonthTarget(hData.currTarget || 0);
         }
 
-        // Mağaza adını çekmek için
         fetch('/api/stores').then(res => res.json()).then(resData => {
            const stores = Array.isArray(resData) ? resData : (resData.store ? [resData.store] : []);
            if (stores.length > 0) setStoreName(stores[0].name);
@@ -112,14 +115,99 @@ export default function DailyTasksPage() {
           const res = await fetch(`/api/store-performance?storeId=${targetId}&month=${currentMonth}&year=${currentYear}`);
           if (res.ok) {
               const result = await res.json();
-              const combinedData = result.personnels.map((p: any) => {
+              let combinedData = result.personnels.map((p: any) => {
                   const mData = result.monthlyData.find((md: any) => md.personnelId === p.id);
-                  return { ...p, personnel: p, ownRevenue: mData?.ownRevenue || 0 };
-              }).filter((p: any) => !p.title?.name?.toLowerCase().includes("müdür")).sort((a: any, b: any) => b.ownRevenue - a.ownRevenue);
-              setPersonnelSales(combinedData);
+                  return { ...p, personnel: p, ownRevenue: mData?.ownRevenue || 0, mData: mData || {} };
+              }).filter((p: any) => !p.title?.name?.toLowerCase().includes("müdür"));
+
+              // 🚀 Sürükle-Bırak sıralamasını LocalStorage'dan çek
+              const savedOrder = localStorage.getItem(`pers_order_${targetId}`);
+              if (savedOrder) {
+                  const orderArr = JSON.parse(savedOrder);
+                  combinedData.sort((a: any, b: any) => {
+                      const idxA = orderArr.indexOf(a.id);
+                      const idxB = orderArr.indexOf(b.id);
+                      if (idxA === -1) return 1;
+                      if (idxB === -1) return -1;
+                      return idxA - idxB;
+                  });
+              } else {
+                  combinedData.sort((a: any, b: any) => b.ownRevenue - a.ownRevenue);
+              }
+              setOrderedPersonnel(combinedData);
           }
       } catch (err) {}
   };
+
+  // =======================================================================
+  // 🚀 YENİ: PERSONEL CİRO GİRİŞİ FONKSİYONLARI (SÜRÜKLE, YAPIŞTIR, KAYDET)
+  // =======================================================================
+
+  const handleDragStart = (index: number) => setDraggedIndex(index);
+  const handleDragOver = (e: React.DragEvent) => e.preventDefault();
+  const handleDrop = (index: number) => {
+      if (draggedIndex === null || draggedIndex === index) return;
+      const newArr = [...orderedPersonnel];
+      const draggedItem = newArr[draggedIndex];
+      newArr.splice(draggedIndex, 1);
+      newArr.splice(index, 0, draggedItem);
+      setOrderedPersonnel(newArr);
+      setDraggedIndex(null);
+      if (myStoreId) localStorage.setItem(`pers_order_${myStoreId}`, JSON.stringify(newArr.map(p => p.id)));
+  };
+
+  const handlePersKeyDown = (e: React.KeyboardEvent, index: number) => {
+      if (e.key === "Enter" || e.key === "Tab") {
+          e.preventDefault();
+          const nextInput = persInputRefs.current[index + 1];
+          if (nextInput) { nextInput.focus(); nextInput.select(); }
+      }
+  };
+
+  const handlePersPaste = (e: React.ClipboardEvent, startIndex: number) => {
+      e.preventDefault();
+      const paste = e.clipboardData.getData('text');
+      const lines = paste.split(/[\r\n]+/).filter(l => l.trim() !== '');
+      
+      const newArr = [...orderedPersonnel];
+      lines.forEach((line, i) => {
+          if (startIndex + i < newArr.length) {
+              let val = line.replace(/\./g, '').replace(',', '.');
+              newArr[startIndex + i].ownRevenue = parseFloat(val) || 0;
+          }
+      });
+      setOrderedPersonnel(newArr);
+  };
+
+  const handlePersonnelRevenueChange = (index: number, val: string) => {
+      const newArr = [...orderedPersonnel];
+      newArr[index].ownRevenue = parseFloat(val) || 0;
+      setOrderedPersonnel(newArr);
+  };
+
+  const handleSavePersonnelRevenues = async () => {
+      if (!myStoreId) return;
+      setIsSavingPersonnel(true);
+      try {
+          const payloadData = orderedPersonnel.map(p => ({
+              ...p.mData, // Varolan verileri koru
+              personnelId: p.id,
+              ownRevenue: p.ownRevenue
+          }));
+
+          const res = await fetch('/api/store-performance', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ storeId: myStoreId, month: currentMonth, year: currentYear, data: payloadData })
+          });
+          
+          if (res.ok) alert("✅ Personel ciroları kaydedildi!");
+      } catch (err) {} finally { setIsSavingPersonnel(false); }
+  };
+
+  // =======================================================================
+  // KASA VE DİĞER KART FONKSİYONLARI
+  // =======================================================================
 
   const handleQuickSave = async () => {
     if (!quickRevenue || !myStoreId) return;
@@ -133,9 +221,7 @@ export default function DailyTasksPage() {
       });
       if (res.ok) { 
           alert("✅ Ciro Kaydedildi!"); 
-          // Hızlıca reel ciroyu güncelle
           setHybridRealizedSales(prev => prev + cleanRevenue);
-          fetchPersonnelSales(myStoreId);
       }
     } catch (err) {} finally { setIsSavingQuick(false); }
   };
@@ -184,7 +270,7 @@ export default function DailyTasksPage() {
     else setExpenses([{ id: Date.now(), amount: 0, date: new Date().toISOString().split('T')[0], desc: "" }]);
   };
 
-  const smsText = `${new Date().toLocaleDateString('tr-TR')} - ${shiftType}\nSistem: ${erpTotal.toLocaleString('tr-TR')} ₺\nReel: ${totals.tlPhysical.toLocaleString('tr-TR')} ₺\nOnay Bekleyen Masraf: ${totals.totalExpenses.toLocaleString('tr-TR')} ₺\n${totals.diff >= 0 ? 'Fazla' : 'Eksik'} Tutar: ${Math.abs(totals.diff).toFixed(2)} ₺\nKontrol Eden: ${selectedStaff}`;
+  const smsText = `${new Date().toLocaleDateString('tr-TR')} - ${shiftType}\nSistem: ${erpTotal.toLocaleString('tr-TR')} ₺\nReel: ${totals.tlPhysical.toLocaleString('tr-TR')} ₺\nMasraf: ${totals.totalExpenses.toLocaleString('tr-TR')} ₺\n${totals.diff >= 0 ? 'Fazla' : 'Eksik'} Tutar: ${Math.abs(totals.diff).toFixed(2)} ₺\nKontrol: ${selectedStaff}`;
   const qrCodeUrl = `https://api.qrserver.com/v1/create-qr-code/?size=300x300&data=${encodeURIComponent(smsText)}`;
 
   const handleCopyText = async () => {
@@ -202,47 +288,81 @@ export default function DailyTasksPage() {
 
   return (
     <>
-        <div className="p-4 md:p-6 bg-slate-50 min-h-screen animate-in fade-in duration-500 space-y-6">
+        <div className="p-4 md:p-6 bg-slate-50 min-h-screen animate-in fade-in duration-500 space-y-4">
           
-          {/* ÜST BAŞLIK VE KONTROLLER */}
-          <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
-            <div>
-              <h1 className="text-2xl md:text-3xl font-black text-slate-900 italic uppercase tracking-tight">Kapanış <span className="text-indigo-600">Kokpiti</span></h1>
-              <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mt-1">Ciro, Kasa Sayımı ve Raporlar Tek Ekranda</p>
-            </div>
-            <div className="flex gap-2 w-full md:w-auto">
-                <button onClick={() => setIsModalOpen(true)} className="flex-1 md:flex-none bg-slate-900 text-white px-5 py-3 rounded-xl font-black text-[10px] uppercase tracking-widest hover:bg-slate-800 transition-all shadow-md active:scale-95">📱 KASA SMS PAYLAŞ</button>
-                <button onClick={handleSaveKasa} disabled={isSaving} className="flex-1 md:flex-none bg-indigo-600 text-white px-5 py-3 rounded-xl font-black text-[10px] uppercase tracking-widest shadow-md hover:bg-indigo-700 transition-all disabled:opacity-50">
-                  {isSaving ? "KAYDEDİLİYOR..." : "💾 KASAYI KAYDET"}
-                </button>
-            </div>
+          {/* ÜST BAŞLIK */}
+          <div>
+            <h1 className="text-2xl font-black text-slate-900 italic uppercase tracking-tight">Kapanış <span className="text-indigo-600">Kokpiti</span></h1>
+            <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mt-1">Ciro, Kasa Sayımı ve Raporlar Tek Ekranda</p>
           </div>
 
-          {/* 🚀 ÜST KARTLAR (BENTO GRID) - Ciro, Mail, Personel */}
-          <section className="grid grid-cols-1 md:grid-cols-3 gap-4 items-stretch">
+          {/* 🚀 ÜST KARTLAR (BENTO GRID - 4 KOLONLU YAPI) */}
+          <section className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-4 items-stretch">
+             
              <QuickSaveCard formattedDateString={formattedDateString} quickRevenue={quickRevenue} setQuickRevenue={setQuickRevenue} handleQuickSave={handleQuickSave} isSavingQuick={isSavingQuick} disabled={!myStoreId} />
+             
+             {/* 🚀 YENİ EKLENEN: PERSONEL CİRO GİRİŞİ KARTI */}
+             <div className="bg-gradient-to-br from-indigo-50 to-blue-50 rounded-[1.5rem] p-5 border border-indigo-100 shadow-sm flex flex-col h-full relative overflow-hidden group">
+                <div className="flex justify-between items-center mb-4">
+                   <div>
+                       <h3 className="text-sm font-black text-indigo-900 leading-tight mb-1">Ciro Dağılımı</h3>
+                       <p className="text-[9px] font-bold text-indigo-600/70 uppercase tracking-widest">Hızlı Giriş</p>
+                   </div>
+                   <button onClick={handleSavePersonnelRevenues} disabled={isSavingPersonnel} className="bg-indigo-600 text-white px-3 py-1.5 rounded-lg font-black text-[9px] uppercase tracking-widest hover:bg-indigo-700 transition-colors disabled:opacity-50 shadow-md">
+                      {isSavingPersonnel ? "..." : "KAYDET"}
+                   </button>
+                </div>
+                
+                <div className="flex-1 overflow-y-auto max-h-[160px] scrollbar-thin scrollbar-thumb-indigo-200 pr-1 space-y-1">
+                   {orderedPersonnel.map((p, index) => (
+                      <div 
+                         key={p.id} 
+                         draggable 
+                         onDragStart={() => handleDragStart(index)} 
+                         onDragOver={handleDragOver} 
+                         onDrop={() => handleDrop(index)}
+                         className="flex items-center gap-2 bg-white/60 hover:bg-white p-1.5 rounded-lg border border-indigo-100 transition-colors cursor-move"
+                      >
+                         <span className="text-slate-300 text-xs cursor-grab active:cursor-grabbing">⋮⋮</span>
+                         <span className="text-[10px] font-bold text-indigo-950 truncate flex-1">{p.firstName}</span>
+                         <input 
+                            ref={el => { persInputRefs.current[index] = el; }}
+                            type="number" 
+                            value={p.ownRevenue || ""} 
+                            placeholder="0"
+                            onChange={e => handlePersonnelRevenueChange(index, e.target.value)}
+                            onKeyDown={e => handlePersKeyDown(e, index)}
+                            onPaste={e => handlePersPaste(e, index)}
+                            className="w-20 p-1 bg-white border border-indigo-200 rounded text-right font-black text-indigo-700 text-xs outline-none focus:border-indigo-500 shadow-inner"
+                         />
+                      </div>
+                   ))}
+                   {orderedPersonnel.length === 0 && <p className="text-[10px] text-indigo-400 font-bold text-center mt-4">Personel bulunamadı.</p>}
+                </div>
+             </div>
+
+             <PersonnelPerformanceCard personnelSales={orderedPersonnel} hybridRealizedSales={hybridRealizedSales} realizedPercentage={realizedPercentage} selectedStoreName={storeName} />
              <OwaMailCard reportEmail={reportEmail} setReportEmail={setReportEmail} owaLink={owaLink} handleSaveEmail={handleSaveEmail} disabled={!myStoreId} />
-             <PersonnelPerformanceCard personnelSales={personnelSales} hybridRealizedSales={hybridRealizedSales} realizedPercentage={realizedPercentage} selectedStoreName={storeName} />
           </section>
 
           {/* 🚀 ALT KISIM: KASA İŞLEMLERİ */}
           <div className="grid grid-cols-1 xl:grid-cols-12 gap-4 items-start">
             
-            {/* SOL: NAKİT MATRİSİ (Tek Kolonlu Jilet Tasarım) - 3 Birim Genişlik */}
-            <div className="xl:col-span-3 bg-white p-5 rounded-[1.5rem] border border-slate-100 shadow-sm flex flex-col justify-between">
+            {/* SOL: NAKİT MATRİSİ (Süper Sıkıştırılmış Jilet Tasarım) - 3 Birim Genişlik */}
+            <div className="xl:col-span-3 bg-white px-4 py-4 rounded-[1.5rem] border border-slate-100 shadow-sm flex flex-col justify-between">
               <div>
-                <div className="flex justify-between items-center mb-4">
+                <div className="flex justify-between items-center mb-2">
                    <h2 className="text-sm font-black text-slate-800 uppercase tracking-tight">💰 Banknot</h2>
                    <span className="text-[9px] font-bold text-slate-400 uppercase">Adet</span>
                 </div>
-                <div className="flex flex-col gap-1.5">
+                <div className="flex flex-col gap-0.5">
                   {DENOMINATIONS.map((d, index) => (
-                    <div key={d.label} className="flex items-center justify-between p-1 hover:bg-slate-50 rounded-lg transition-colors border border-transparent hover:border-slate-100">
+                    <div key={d.label} className="flex items-center justify-between px-1 py-0.5 hover:bg-slate-50 rounded transition-colors border border-transparent hover:border-slate-100">
                       <span className="font-bold text-slate-500 text-[10px] w-12">{d.label}</span>
                       <input 
                         ref={el => { inputRefs.current[index] = el; }}
                         type="number" value={cashCounts[d.label] || ""} placeholder="0"
-                        className="w-full max-w-[80px] p-1.5 bg-slate-50 border border-slate-100 rounded-md text-right font-black text-indigo-700 text-sm outline-none focus:border-indigo-400 focus:bg-white transition-all" 
+                        className="w-full max-w-[70px] py-1 px-1.5 bg-slate-50 border border-slate-100 rounded text-right font-black text-indigo-700 text-xs outline-none focus:border-indigo-400 focus:bg-white transition-all h-6" 
                         onChange={e => setCashCounts({...cashCounts, [d.label]: e.target.value})}
                         onKeyDown={e => handleKeyDown(e, index)}
                       />
@@ -250,13 +370,13 @@ export default function DailyTasksPage() {
                   ))}
                 </div>
               </div>
-              <div className="mt-4 pt-3 border-t border-slate-100 flex justify-between items-center">
+              <div className="mt-3 pt-2 border-t border-slate-100 flex justify-between items-center">
                  <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Fiziki</span>
-                 <span className="text-lg font-black text-indigo-900">{totals.tlPhysical.toLocaleString('tr-TR')} ₺</span>
+                 <span className="text-base font-black text-indigo-900">{totals.tlPhysical.toLocaleString('tr-TR')} ₺</span>
               </div>
             </div>
 
-            {/* SAĞ: ÖZET VE MASRAFLAR - 9 Birim Genişlik */}
+            {/* SAĞ: ÖZET, MASRAFLAR VE KAYDET BUTONLARI - 9 Birim Genişlik */}
             <div className="xl:col-span-9 flex flex-col gap-4">
               
               {/* ÖZET KARTI VE BANKA */}
@@ -292,7 +412,6 @@ export default function DailyTasksPage() {
               {/* MASRAFLAR VE PERSONEL SEÇİMİ */}
               <div className="grid grid-cols-1 lg:grid-cols-3 gap-4 items-start">
                   
-                  {/* PERSONEL VARDİYA (Sol) */}
                   <div className="bg-white p-5 rounded-[1.5rem] border border-slate-100 shadow-sm flex flex-col gap-3">
                     <select className="w-full p-2.5 bg-slate-50 border border-slate-100 rounded-xl text-[10px] font-black uppercase tracking-widest text-slate-700 outline-none focus:border-indigo-300" value={selectedStaff} onChange={e => setSelectedStaff(e.target.value)}>
                        <option value="">Personel Seçiniz</option>
@@ -304,29 +423,40 @@ export default function DailyTasksPage() {
                     </select>
                   </div>
 
-                  {/* MASRAFLAR LİSTESİ (Sağ - 2 Kolon) */}
-                  <div className="lg:col-span-2 bg-white p-5 rounded-[1.5rem] border border-slate-100 shadow-sm">
-                    <div className="flex justify-between items-center mb-4">
+                  <div className="lg:col-span-2 bg-white p-5 rounded-[1.5rem] border border-slate-100 shadow-sm flex flex-col h-full">
+                    <div className="flex justify-between items-center mb-3">
                         <h2 className="text-sm font-black text-slate-800 uppercase tracking-tight">📑 Masraf Fişleri</h2>
                         <span className="text-[10px] font-bold text-slate-400 uppercase">Toplam: {totals.totalExpenses.toLocaleString('tr-TR')} ₺</span>
                     </div>
-                    <div className="space-y-2 mb-3 max-h-[120px] overflow-y-auto scrollbar-thin scrollbar-thumb-slate-200 pr-2">
+                    <div className="space-y-1.5 mb-3 max-h-[100px] overflow-y-auto scrollbar-thin scrollbar-thumb-slate-200 pr-1 flex-1">
                         {expenses.map((exp) => (
-                          <div key={exp.id} className="flex flex-col sm:flex-row gap-2 bg-slate-50 p-2 rounded-xl border border-slate-100 items-center">
-                            <input type="date" value={exp.date} onChange={e => setExpenses(expenses.map(ex => ex.id === exp.id ? {...ex, date: e.target.value} : ex))} className="p-1.5 bg-white rounded-lg text-[10px] font-black text-slate-600 outline-none border border-slate-200 w-full sm:w-28" />
-                            <input type="text" value={exp.desc} placeholder="Açıklama" onChange={e => setExpenses(expenses.map(ex => ex.id === exp.id ? {...ex, desc: e.target.value} : ex))} className="p-1.5 bg-white rounded-lg text-xs font-bold flex-1 outline-none border border-slate-200 w-full" />
+                          <div key={exp.id} className="flex flex-col sm:flex-row gap-1.5 bg-slate-50 p-1.5 rounded-lg border border-slate-100 items-center">
+                            <input type="date" value={exp.date} onChange={e => setExpenses(expenses.map(ex => ex.id === exp.id ? {...ex, date: e.target.value} : ex))} className="p-1.5 bg-white rounded text-[9px] font-black text-slate-600 outline-none border border-slate-200 w-full sm:w-28" />
+                            <input type="text" value={exp.desc} placeholder="Açıklama" onChange={e => setExpenses(expenses.map(ex => ex.id === exp.id ? {...ex, desc: e.target.value} : ex))} className="p-1.5 bg-white rounded text-[10px] font-bold flex-1 outline-none border border-slate-200 w-full" />
                             <div className="flex items-center gap-1 w-full sm:w-auto">
                                <div className="relative flex-1 sm:w-24">
                                   <span className="absolute left-2 top-1/2 -translate-y-1/2 text-[10px] font-black text-indigo-400">₺</span>
-                                  <input type="number" value={exp.amount || ""} placeholder="0" onChange={e => setExpenses(expenses.map(ex => ex.id === exp.id ? {...ex, amount: Number(e.target.value)} : ex))} className="p-1.5 pl-5 bg-white rounded-lg text-sm font-black text-indigo-700 w-full outline-none border border-slate-200 focus:border-indigo-400" />
+                                  <input type="number" value={exp.amount || ""} placeholder="0" onChange={e => setExpenses(expenses.map(ex => ex.id === exp.id ? {...ex, amount: Number(e.target.value)} : ex))} className="p-1.5 pl-5 bg-white rounded text-xs font-black text-indigo-700 w-full outline-none border border-slate-200 focus:border-indigo-400" />
                                </div>
-                               <button onClick={() => removeExpenseRow(exp.id)} className="bg-red-50 text-red-500 hover:bg-red-500 hover:text-white w-7 h-7 rounded-lg font-black transition-colors">✕</button>
+                               <button onClick={() => removeExpenseRow(exp.id)} className="bg-red-50 text-red-500 hover:bg-red-500 hover:text-white w-6 h-6 rounded font-black transition-colors flex items-center justify-center text-xs">✕</button>
                             </div>
                           </div>
                         ))}
                     </div>
-                    <button onClick={() => setExpenses([...expenses, { id: Date.now(), amount: 0, date: new Date().toISOString().split('T')[0], desc: "" }])} className="w-full py-2 bg-slate-50 border border-dashed border-slate-300 rounded-xl text-[10px] font-black text-slate-500 hover:bg-indigo-50 hover:text-indigo-600 transition-all uppercase tracking-widest">+ MASRAF EKLE</button>
+                    <button onClick={() => setExpenses([...expenses, { id: Date.now(), amount: 0, date: new Date().toISOString().split('T')[0], desc: "" }])} className="w-full py-1.5 bg-slate-50 border border-dashed border-slate-300 rounded-lg text-[9px] font-black text-slate-500 hover:bg-indigo-50 hover:text-indigo-600 transition-all uppercase tracking-widest mt-auto">
+                      + MASRAF EKLE
+                    </button>
                   </div>
+              </div>
+
+              {/* 🚀 BÜYÜK BUTONLAR ARTIK BURADA (EN ALTTA) */}
+              <div className="flex gap-3 w-full">
+                  <button onClick={() => setIsModalOpen(true)} className="flex-1 bg-slate-900 text-white py-4 rounded-[1rem] font-black text-xs uppercase tracking-widest hover:bg-slate-800 transition-all shadow-md active:scale-95">
+                    📱 KASA RAPORUNU SMS İLE PAYLAŞ
+                  </button>
+                  <button onClick={handleSaveKasa} disabled={isSaving} className="flex-1 bg-emerald-600 text-white py-4 rounded-[1rem] font-black text-xs uppercase tracking-widest shadow-md hover:bg-emerald-700 transition-all disabled:opacity-50">
+                    {isSaving ? "İŞLENİYOR..." : "💾 TÜM KASAYI SİSTEME KAYDET"}
+                  </button>
               </div>
 
             </div>
