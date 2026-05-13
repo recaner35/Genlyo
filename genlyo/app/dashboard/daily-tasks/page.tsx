@@ -45,7 +45,7 @@ export default function DailyTasksPage() {
   const [hybridRealizedSales, setHybridRealizedSales] = useState(0);
   const [currentMonthTarget, setCurrentMonthTarget] = useState(0);
 
-  // YENİ: PERSONEL CİRO STATE'LERİ VE SÜRÜKLE BIRAK
+  // PERSONEL CİRO STATE'LERİ VE SÜRÜKLE BIRAK
   const [orderedPersonnel, setOrderedPersonnel] = useState<any[]>([]);
   const [draggedIndex, setDraggedIndex] = useState<number | null>(null);
   const [isSavingPersonnel, setIsSavingPersonnel] = useState(false);
@@ -115,7 +115,6 @@ export default function DailyTasksPage() {
           const res = await fetch(`/api/store-performance?storeId=${targetId}&month=${currentMonth}&year=${currentYear}`);
           if (res.ok) {
               const result = await res.json();
-              // 🚀 MÜDÜR FİLTRESİ KALDIRILDI: Artık herkes listede!
               let combinedData = result.personnels.map((p: any) => {
                   const mData = result.monthlyData.find((md: any) => md.personnelId === p.id);
                   return { ...p, personnel: p, ownRevenue: mData?.ownRevenue || 0, mData: mData || {} };
@@ -150,7 +149,7 @@ export default function DailyTasksPage() {
   
   const handleDragOver = (e: React.DragEvent) => {
       e.preventDefault();
-      e.dataTransfer.dropEffect = "move"; // İmleci el (taşıma) şeklinde tutar
+      e.dataTransfer.dropEffect = "move"; 
   };
   
   const handleDrop = (e: React.DragEvent, index: number) => {
@@ -214,7 +213,6 @@ export default function DailyTasksPage() {
       } catch (err) {} finally { setIsSavingPersonnel(false); }
   };
 
-  // Girilen personel ciroları toplamı (Dinamik Alt Bilgi)
   const totalPersonnelRevenue = orderedPersonnel.reduce((acc, p) => acc + (Number(p.ownRevenue) || 0), 0);
 
   // =======================================================================
@@ -313,11 +311,11 @@ export default function DailyTasksPage() {
              
              <QuickSaveCard formattedDateString={formattedDateString} quickRevenue={quickRevenue} setQuickRevenue={setQuickRevenue} handleQuickSave={handleQuickSave} isSavingQuick={isSavingQuick} disabled={!myStoreId} />
              
-             {/* 🚀 PERSONEL CİRO GİRİŞİ KARTI */}
+             {/* 🚀 PERSONEL CİRO GİRİŞİ KARTI (KOMPAKT & SCROLLSUZ) */}
              <div className="bg-gradient-to-br from-indigo-50 to-blue-50 rounded-[1.5rem] p-5 border border-indigo-100 shadow-sm flex flex-col h-full relative overflow-hidden group">
-                <div className="flex justify-between items-center mb-4">
+                <div className="flex justify-between items-center mb-3">
                    <div>
-                       <h3 className="text-sm font-black text-indigo-900 leading-tight mb-1">Ciro Dağılımı</h3>
+                       <h3 className="text-sm font-black text-indigo-900 leading-tight mb-0.5">Ciro Dağılımı</h3>
                        <p className="text-[9px] font-bold text-indigo-600/70 uppercase tracking-widest">Hızlı Giriş</p>
                    </div>
                    <button onClick={handleSavePersonnelRevenues} disabled={isSavingPersonnel} className="bg-indigo-600 text-white px-3 py-1.5 rounded-lg font-black text-[9px] uppercase tracking-widest hover:bg-indigo-700 transition-colors disabled:opacity-50 shadow-md">
@@ -325,7 +323,8 @@ export default function DailyTasksPage() {
                    </button>
                 </div>
                 
-                <div className="flex-1 overflow-y-auto max-h-[140px] scrollbar-thin scrollbar-thumb-indigo-200 pr-1 space-y-1">
+                {/* 🚀 Satır Aralıkları Kısıldı, Scroll İhtimali Düşürüldü */}
+                <div className="flex-1 space-y-0.5">
                    {orderedPersonnel.map((p, index) => (
                       <div 
                          key={p.id} 
@@ -333,11 +332,10 @@ export default function DailyTasksPage() {
                          onDragStart={(e) => handleDragStart(e, index)} 
                          onDragOver={handleDragOver} 
                          onDrop={(e) => handleDrop(e, index)}
-                         className="flex items-center gap-2 bg-white/60 hover:bg-white p-1.5 rounded-lg border border-indigo-100 transition-colors cursor-grab active:cursor-grabbing select-none"
+                         className="flex items-center gap-1 bg-white/60 hover:bg-white p-1 rounded-md border border-indigo-50 transition-colors cursor-grab active:cursor-grabbing select-none"
                       >
-                         <div className="text-slate-300 text-[10px] px-1">⋮⋮</div>
-                         <span className="text-[10px] font-bold text-indigo-950 truncate flex-1">{p.firstName} {p.lastName}</span>
-                         {/* 🚀 KUTUCUK GENİŞLETİLDİ (w-28) */}
+                         <div className="text-slate-300 text-[8px] px-0.5">⋮⋮</div>
+                         <span className="text-[10px] font-bold text-indigo-950 truncate flex-1 leading-tight">{p.firstName} {p.lastName}</span>
                          <input 
                             ref={el => { persInputRefs.current[index] = el; }}
                             type="number" 
@@ -346,17 +344,16 @@ export default function DailyTasksPage() {
                             onChange={e => handlePersonnelRevenueChange(index, e.target.value)}
                             onKeyDown={e => handlePersKeyDown(e, index)}
                             onPaste={e => handlePersPaste(e, index)}
-                            className="w-28 p-1 bg-white border border-indigo-200 rounded text-right font-black text-indigo-700 text-xs outline-none focus:border-indigo-500 shadow-inner"
+                            className="w-24 p-0.5 bg-white border border-indigo-100 rounded text-right font-black text-indigo-700 text-xs outline-none focus:border-indigo-500 shadow-inner h-5"
                          />
                       </div>
                    ))}
                    {orderedPersonnel.length === 0 && <p className="text-[10px] text-indigo-400 font-bold text-center mt-4">Personel bulunamadı.</p>}
                 </div>
 
-                {/* 🚀 DİNAMİK TOPLAM CİRO BİLGİSİ */}
-                <div className="mt-3 pt-2 border-t border-indigo-100 flex justify-between items-center">
+                <div className="mt-2 pt-1.5 border-t border-indigo-100 flex justify-between items-center">
                     <span className="text-[9px] font-black text-indigo-400 uppercase tracking-widest">GİRİLEN TOPLAM</span>
-                    <span className="text-sm font-black text-indigo-900">{totalPersonnelRevenue.toLocaleString('tr-TR')} ₺</span>
+                    <span className="text-xs font-black text-indigo-900">{totalPersonnelRevenue.toLocaleString('tr-TR')} ₺</span>
                 </div>
              </div>
 
@@ -367,30 +364,38 @@ export default function DailyTasksPage() {
           {/* 🚀 ALT KISIM: KASA İŞLEMLERİ */}
           <div className="grid grid-cols-1 xl:grid-cols-12 gap-4 items-start">
             
-            {/* SOL: NAKİT MATRİSİ (Süper Sıkıştırılmış Jilet Tasarım) */}
+            {/* 🚀 SOL: NAKİT MATRİSİ (Satır Toplamlı & Sıkıştırılmış) */}
             <div className="xl:col-span-3 bg-white px-4 py-4 rounded-[1.5rem] border border-slate-100 shadow-sm flex flex-col justify-between">
               <div>
                 <div className="flex justify-between items-center mb-2">
                    <h2 className="text-sm font-black text-slate-800 uppercase tracking-tight">💰 Banknot</h2>
-                   <span className="text-[9px] font-bold text-slate-400 uppercase">Adet</span>
+                   <span className="text-[9px] font-bold text-slate-400 uppercase">Adet & Tutar</span>
                 </div>
                 <div className="flex flex-col gap-0.5">
-                  {DENOMINATIONS.map((d, index) => (
-                    <div key={d.label} className="flex items-center justify-between px-1 py-0.5 hover:bg-slate-50 rounded transition-colors border border-transparent hover:border-slate-100">
-                      <span className="font-bold text-slate-500 text-[10px] w-12">{d.label}</span>
-                      <input 
-                        ref={el => { inputRefs.current[index] = el; }}
-                        type="number" value={cashCounts[d.label] || ""} placeholder="0"
-                        className="w-full max-w-[70px] py-1 px-1.5 bg-slate-50 border border-slate-100 rounded text-right font-black text-indigo-700 text-xs outline-none focus:border-indigo-400 focus:bg-white transition-all h-6" 
-                        onChange={e => setCashCounts({...cashCounts, [d.label]: e.target.value})}
-                        onKeyDown={e => handleKeyDown(e, index)}
-                      />
-                    </div>
-                  ))}
+                  {DENOMINATIONS.map((d, index) => {
+                     const rowTotal = (Number(cashCounts[d.label]) || 0) * d.value;
+                     
+                     return (
+                        <div key={d.label} className="flex items-center gap-1 px-1 py-0.5 hover:bg-slate-50 rounded transition-colors border border-transparent hover:border-slate-100">
+                          <span className="font-bold text-slate-500 text-[10px] w-12">{d.label}</span>
+                          <input 
+                            ref={el => { inputRefs.current[index] = el; }}
+                            type="number" value={cashCounts[d.label] || ""} placeholder="0"
+                            className="w-14 py-0.5 px-1 bg-slate-50 border border-slate-100 rounded text-center font-black text-indigo-700 text-xs outline-none focus:border-indigo-400 focus:bg-white transition-all h-6" 
+                            onChange={e => setCashCounts({...cashCounts, [d.label]: e.target.value})}
+                            onKeyDown={e => handleKeyDown(e, index)}
+                          />
+                          {/* 🚀 YENİ: KİBAR SATIR TOPLAMI */}
+                          <span className="text-[9px] font-black text-slate-300 text-right flex-1 truncate">
+                             {rowTotal > 0 ? `${rowTotal.toLocaleString('tr-TR')} ₺` : '-'}
+                          </span>
+                        </div>
+                     )
+                  })}
                 </div>
               </div>
               <div className="mt-3 pt-2 border-t border-slate-100 flex justify-between items-center">
-                 <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Fiziki</span>
+                 <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Fiziki Toplam</span>
                  <span className="text-base font-black text-indigo-900">{totals.tlPhysical.toLocaleString('tr-TR')} ₺</span>
               </div>
             </div>
@@ -398,7 +403,6 @@ export default function DailyTasksPage() {
             {/* SAĞ: ÖZET, MASRAFLAR VE KAYDET BUTONLARI */}
             <div className="xl:col-span-9 flex flex-col gap-4">
               
-              {/* ÖZET KARTI VE BANKA */}
               <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 items-stretch">
                  <div className="sm:col-span-2 bg-slate-900 rounded-[1.5rem] p-5 shadow-lg flex flex-col sm:flex-row items-center justify-between gap-4">
                     <div className="flex items-center gap-3 w-full sm:w-auto">
@@ -428,7 +432,6 @@ export default function DailyTasksPage() {
                  </div>
               </div>
 
-              {/* MASRAFLAR VE PERSONEL SEÇİMİ */}
               <div className="grid grid-cols-1 lg:grid-cols-3 gap-4 items-start">
                   
                   <div className="bg-white p-5 rounded-[1.5rem] border border-slate-100 shadow-sm flex flex-col gap-3">
