@@ -45,7 +45,7 @@ export default function DailyTasksPage() {
   const [hybridRealizedSales, setHybridRealizedSales] = useState(0);
   const [currentMonthTarget, setCurrentMonthTarget] = useState(0);
 
-  // 🚀 YENİ: PERSONEL CİRO STATE'LERİ VE SÜRÜKLE BIRAK
+  // YENİ: PERSONEL CİRO STATE'LERİ VE SÜRÜKLE BIRAK
   const [orderedPersonnel, setOrderedPersonnel] = useState<any[]>([]);
   const [draggedIndex, setDraggedIndex] = useState<number | null>(null);
   const [isSavingPersonnel, setIsSavingPersonnel] = useState(false);
@@ -115,12 +115,12 @@ export default function DailyTasksPage() {
           const res = await fetch(`/api/store-performance?storeId=${targetId}&month=${currentMonth}&year=${currentYear}`);
           if (res.ok) {
               const result = await res.json();
+              // 🚀 MÜDÜR FİLTRESİ KALDIRILDI: Artık herkes listede!
               let combinedData = result.personnels.map((p: any) => {
                   const mData = result.monthlyData.find((md: any) => md.personnelId === p.id);
                   return { ...p, personnel: p, ownRevenue: mData?.ownRevenue || 0, mData: mData || {} };
-              }).filter((p: any) => !p.title?.name?.toLowerCase().includes("müdür"));
+              });
 
-              // 🚀 Sürükle-Bırak sıralamasını LocalStorage'dan çek
               const savedOrder = localStorage.getItem(`pers_order_${targetId}`);
               if (savedOrder) {
                   const orderArr = JSON.parse(savedOrder);
@@ -140,12 +140,21 @@ export default function DailyTasksPage() {
   };
 
   // =======================================================================
-  // 🚀 YENİ: PERSONEL CİRO GİRİŞİ FONKSİYONLARI (SÜRÜKLE, YAPIŞTIR, KAYDET)
+  // PERSONEL CİRO GİRİŞİ FONKSİYONLARI (SÜRÜKLE, YAPIŞTIR, KAYDET)
   // =======================================================================
 
-  const handleDragStart = (index: number) => setDraggedIndex(index);
-  const handleDragOver = (e: React.DragEvent) => e.preventDefault();
-  const handleDrop = (index: number) => {
+  const handleDragStart = (e: React.DragEvent, index: number) => {
+      setDraggedIndex(index);
+      e.dataTransfer.effectAllowed = "move";
+  };
+  
+  const handleDragOver = (e: React.DragEvent) => {
+      e.preventDefault();
+      e.dataTransfer.dropEffect = "move"; // İmleci el (taşıma) şeklinde tutar
+  };
+  
+  const handleDrop = (e: React.DragEvent, index: number) => {
+      e.preventDefault();
       if (draggedIndex === null || draggedIndex === index) return;
       const newArr = [...orderedPersonnel];
       const draggedItem = newArr[draggedIndex];
@@ -190,7 +199,7 @@ export default function DailyTasksPage() {
       setIsSavingPersonnel(true);
       try {
           const payloadData = orderedPersonnel.map(p => ({
-              ...p.mData, // Varolan verileri koru
+              ...p.mData,
               personnelId: p.id,
               ownRevenue: p.ownRevenue
           }));
@@ -204,6 +213,9 @@ export default function DailyTasksPage() {
           if (res.ok) alert("✅ Personel ciroları kaydedildi!");
       } catch (err) {} finally { setIsSavingPersonnel(false); }
   };
+
+  // Girilen personel ciroları toplamı (Dinamik Alt Bilgi)
+  const totalPersonnelRevenue = orderedPersonnel.reduce((acc, p) => acc + (Number(p.ownRevenue) || 0), 0);
 
   // =======================================================================
   // KASA VE DİĞER KART FONKSİYONLARI
@@ -301,7 +313,7 @@ export default function DailyTasksPage() {
              
              <QuickSaveCard formattedDateString={formattedDateString} quickRevenue={quickRevenue} setQuickRevenue={setQuickRevenue} handleQuickSave={handleQuickSave} isSavingQuick={isSavingQuick} disabled={!myStoreId} />
              
-             {/* 🚀 YENİ EKLENEN: PERSONEL CİRO GİRİŞİ KARTI */}
+             {/* 🚀 PERSONEL CİRO GİRİŞİ KARTI */}
              <div className="bg-gradient-to-br from-indigo-50 to-blue-50 rounded-[1.5rem] p-5 border border-indigo-100 shadow-sm flex flex-col h-full relative overflow-hidden group">
                 <div className="flex justify-between items-center mb-4">
                    <div>
@@ -313,18 +325,19 @@ export default function DailyTasksPage() {
                    </button>
                 </div>
                 
-                <div className="flex-1 overflow-y-auto max-h-[160px] scrollbar-thin scrollbar-thumb-indigo-200 pr-1 space-y-1">
+                <div className="flex-1 overflow-y-auto max-h-[140px] scrollbar-thin scrollbar-thumb-indigo-200 pr-1 space-y-1">
                    {orderedPersonnel.map((p, index) => (
                       <div 
                          key={p.id} 
                          draggable 
-                         onDragStart={() => handleDragStart(index)} 
+                         onDragStart={(e) => handleDragStart(e, index)} 
                          onDragOver={handleDragOver} 
-                         onDrop={() => handleDrop(index)}
-                         className="flex items-center gap-2 bg-white/60 hover:bg-white p-1.5 rounded-lg border border-indigo-100 transition-colors cursor-move"
+                         onDrop={(e) => handleDrop(e, index)}
+                         className="flex items-center gap-2 bg-white/60 hover:bg-white p-1.5 rounded-lg border border-indigo-100 transition-colors cursor-grab active:cursor-grabbing select-none"
                       >
-                         <span className="text-slate-300 text-xs cursor-grab active:cursor-grabbing">⋮⋮</span>
-                         <span className="text-[10px] font-bold text-indigo-950 truncate flex-1">{p.firstName}</span>
+                         <div className="text-slate-300 text-[10px] px-1">⋮⋮</div>
+                         <span className="text-[10px] font-bold text-indigo-950 truncate flex-1">{p.firstName} {p.lastName}</span>
+                         {/* 🚀 KUTUCUK GENİŞLETİLDİ (w-28) */}
                          <input 
                             ref={el => { persInputRefs.current[index] = el; }}
                             type="number" 
@@ -333,11 +346,17 @@ export default function DailyTasksPage() {
                             onChange={e => handlePersonnelRevenueChange(index, e.target.value)}
                             onKeyDown={e => handlePersKeyDown(e, index)}
                             onPaste={e => handlePersPaste(e, index)}
-                            className="w-20 p-1 bg-white border border-indigo-200 rounded text-right font-black text-indigo-700 text-xs outline-none focus:border-indigo-500 shadow-inner"
+                            className="w-28 p-1 bg-white border border-indigo-200 rounded text-right font-black text-indigo-700 text-xs outline-none focus:border-indigo-500 shadow-inner"
                          />
                       </div>
                    ))}
                    {orderedPersonnel.length === 0 && <p className="text-[10px] text-indigo-400 font-bold text-center mt-4">Personel bulunamadı.</p>}
+                </div>
+
+                {/* 🚀 DİNAMİK TOPLAM CİRO BİLGİSİ */}
+                <div className="mt-3 pt-2 border-t border-indigo-100 flex justify-between items-center">
+                    <span className="text-[9px] font-black text-indigo-400 uppercase tracking-widest">GİRİLEN TOPLAM</span>
+                    <span className="text-sm font-black text-indigo-900">{totalPersonnelRevenue.toLocaleString('tr-TR')} ₺</span>
                 </div>
              </div>
 
@@ -348,7 +367,7 @@ export default function DailyTasksPage() {
           {/* 🚀 ALT KISIM: KASA İŞLEMLERİ */}
           <div className="grid grid-cols-1 xl:grid-cols-12 gap-4 items-start">
             
-            {/* SOL: NAKİT MATRİSİ (Süper Sıkıştırılmış Jilet Tasarım) - 3 Birim Genişlik */}
+            {/* SOL: NAKİT MATRİSİ (Süper Sıkıştırılmış Jilet Tasarım) */}
             <div className="xl:col-span-3 bg-white px-4 py-4 rounded-[1.5rem] border border-slate-100 shadow-sm flex flex-col justify-between">
               <div>
                 <div className="flex justify-between items-center mb-2">
@@ -376,7 +395,7 @@ export default function DailyTasksPage() {
               </div>
             </div>
 
-            {/* SAĞ: ÖZET, MASRAFLAR VE KAYDET BUTONLARI - 9 Birim Genişlik */}
+            {/* SAĞ: ÖZET, MASRAFLAR VE KAYDET BUTONLARI */}
             <div className="xl:col-span-9 flex flex-col gap-4">
               
               {/* ÖZET KARTI VE BANKA */}
@@ -449,7 +468,7 @@ export default function DailyTasksPage() {
                   </div>
               </div>
 
-              {/* 🚀 BÜYÜK BUTONLAR ARTIK BURADA (EN ALTTA) */}
+              {/* BÜYÜK BUTONLAR */}
               <div className="flex gap-3 w-full">
                   <button onClick={() => setIsModalOpen(true)} className="flex-1 bg-slate-900 text-white py-4 rounded-[1rem] font-black text-xs uppercase tracking-widest hover:bg-slate-800 transition-all shadow-md active:scale-95">
                     📱 KASA RAPORUNU SMS İLE PAYLAŞ
