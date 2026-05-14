@@ -22,7 +22,6 @@ const DENOMINATIONS = [
 export default function DailyTasksPage() {
   const { data: session } = useSession();
   
-  // KASA STATE'LERİ
   const [cashCounts, setCashCounts] = useState<Record<string, string>>({});
   const [expenses, setExpenses] = useState<Expense[]>([{ id: Date.now(), amount: 0, date: new Date().toISOString().split('T')[0], desc: "" }]);
   const [erpTotal, setErpTotal] = useState<number>(0);
@@ -36,16 +35,14 @@ export default function DailyTasksPage() {
   const inputRefs = useRef<(HTMLInputElement | null)[]>([]);
   const persInputRefs = useRef<(HTMLInputElement | null)[]>([]);
 
-  // KART STATE'LERİ
   const [myStoreId, setMyStoreId] = useState<string | null>(null);
-  const [storeName, setStoreName] = useState<string>("Mağaza");
+  const [storeName, setStoreName] = useState<string>("Yükleniyor...");
   const [quickRevenue, setQuickRevenue] = useState("");
   const [isSavingQuick, setIsSavingQuick] = useState(false);
   const [reportEmail, setReportEmail] = useState("");
   const [hybridRealizedSales, setHybridRealizedSales] = useState(0);
   const [currentMonthTarget, setCurrentMonthTarget] = useState(0);
 
-  // PERSONEL CİRO STATE'LERİ VE SÜRÜKLE BIRAK
   const [orderedPersonnel, setOrderedPersonnel] = useState<any[]>([]);
   const [draggedIndex, setDraggedIndex] = useState<number | null>(null);
   const [isSavingPersonnel, setIsSavingPersonnel] = useState(false);
@@ -59,15 +56,38 @@ export default function DailyTasksPage() {
   useEffect(() => {
     const initPage = async () => {
       try {
-        const [resP, resT, resS, resHybrid] = await Promise.all([
+        const [resP, resT, resS, resHybrid, resStores] = await Promise.all([
           fetch('/api/personnel'),
           fetch('/api/daily-tasks', { cache: 'no-store' }),
           fetch(`/api/sales?year=${currentYear}&month=${currentMonth}&_t=${Date.now()}`, { cache: 'no-store' }),
-          fetch(`/api/dashboard/hybrid?level=STORE&filterId=ALL`) 
+          fetch(`/api/dashboard/hybrid?level=STORE&filterId=ALL`),
+          fetch('/api/stores')
         ]);
 
         if (resP.ok) setPersonnels(await resP.json());
         
+        const sData = await resS.json();
+        const storesData = await resStores.json();
+        const allStores = Array.isArray(storesData) ? storesData : (storesData.store ? [storesData.store] : []);
+
+        if (sData.allowedStoreId) {
+            setMyStoreId(sData.allowedStoreId);
+            setReportEmail(localStorage.getItem(`genlyo_mail_${sData.allowedStoreId}`) || "");
+            
+            // 🚀 MAĞAZA ADINI DOĞRU EŞLEŞTİRME
+            const myStore = allStores.find((s: any) => s.id === sData.allowedStoreId);
+            if (myStore) setStoreName(myStore.name);
+
+            const salesArray = Array.isArray(sData?.sales) ? sData.sales : [];
+            const totalRev = salesArray.reduce((acc: number, curr: any) => acc + Number(curr.revenue), 0);
+            setHybridRealizedSales(totalRev);
+
+            const todaySale = salesArray.find((s: any) => new Date(s.date).getUTCDate() === currentDay && s.storeId === sData.allowedStoreId);
+            setQuickRevenue(todaySale ? todaySale.revenue.toString() : "");
+
+            fetchPersonnelSales(sData.allowedStoreId);
+        }
+
         if (resT.ok) {
           const tData = await resT.json();
           if (tData && tData.id) {
@@ -79,31 +99,10 @@ export default function DailyTasksPage() {
           }
         }
 
-        if (resS.ok) {
-           const sData = await resS.json();
-           const salesArray = Array.isArray(sData?.sales) ? sData.sales : [];
-           if (sData.allowedStoreId) {
-               setMyStoreId(sData.allowedStoreId);
-               setReportEmail(localStorage.getItem(`genlyo_mail_${sData.allowedStoreId}`) || "");
-               const totalRev = salesArray.reduce((acc: number, curr: any) => acc + Number(curr.revenue), 0);
-               setHybridRealizedSales(totalRev);
-
-               const todaySale = salesArray.find((s: any) => new Date(s.date).getUTCDate() === currentDay && s.storeId === sData.allowedStoreId);
-               setQuickRevenue(todaySale ? todaySale.revenue.toString() : "");
-
-               fetchPersonnelSales(sData.allowedStoreId);
-           }
-        }
-
         if (resHybrid.ok) {
            const hData = await resHybrid.json();
            setCurrentMonthTarget(hData.currTarget || 0);
         }
-
-        fetch('/api/stores').then(res => res.json()).then(resData => {
-           const stores = Array.isArray(resData) ? resData : (resData.store ? [resData.store] : []);
-           if (stores.length > 0) setStoreName(stores[0].name);
-        });
 
       } catch (err) {} finally { setLoading(false); }
     };
@@ -138,9 +137,10 @@ export default function DailyTasksPage() {
       } catch (err) {}
   };
 
-  // =======================================================================
-  // PERSONEL CİRO GİRİŞİ FONKSİYONLARI (SÜRÜKLE, YAPIŞTIR, KAYDET)
-  // =======================================================================
+  // 🚀 RAPOR İÇİN MÜDÜRÜ FİLTRELEME
+  const personnelForReport = useMemo(() => {
+    return orderedPersonnel.filter(p => !p.title?.name?.toLowerCase().includes("müdür"));
+  }, [orderedPersonnel]);
 
   const handleDragStart = (e: React.DragEvent, index: number) => {
       setDraggedIndex(index);
@@ -202,22 +202,16 @@ export default function DailyTasksPage() {
               personnelId: p.id,
               ownRevenue: p.ownRevenue
           }));
-
           const res = await fetch('/api/store-performance', {
               method: 'POST',
               headers: { 'Content-Type': 'application/json' },
               body: JSON.stringify({ storeId: myStoreId, month: currentMonth, year: currentYear, data: payloadData })
           });
-          
           if (res.ok) alert("✅ Personel ciroları kaydedildi!");
       } catch (err) {} finally { setIsSavingPersonnel(false); }
   };
 
   const totalPersonnelRevenue = orderedPersonnel.reduce((acc, p) => acc + (Number(p.ownRevenue) || 0), 0);
-
-  // =======================================================================
-  // KASA VE DİĞER KART FONKSİYONLARI
-  // =======================================================================
 
   const handleQuickSave = async () => {
     if (!quickRevenue || !myStoreId) return;
@@ -300,18 +294,15 @@ export default function DailyTasksPage() {
     <>
         <div className="p-4 md:p-6 bg-slate-50 min-h-screen animate-in fade-in duration-500 space-y-4">
           
-          {/* ÜST BAŞLIK */}
           <div>
             <h1 className="text-2xl font-black text-slate-900 italic uppercase tracking-tight">Kapanış <span className="text-indigo-600">Kokpiti</span></h1>
             <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mt-1">Ciro, Kasa Sayımı ve Raporlar Tek Ekranda</p>
           </div>
 
-          {/* 🚀 ÜST KARTLAR (BENTO GRID - 4 KOLONLU YAPI) */}
           <section className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-4 items-stretch">
              
              <QuickSaveCard formattedDateString={formattedDateString} quickRevenue={quickRevenue} setQuickRevenue={setQuickRevenue} handleQuickSave={handleQuickSave} isSavingQuick={isSavingQuick} disabled={!myStoreId} />
              
-             {/* 🚀 PERSONEL CİRO GİRİŞİ KARTI (KOMPAKT & SCROLLSUZ) */}
              <div className="bg-gradient-to-br from-indigo-50 to-blue-50 rounded-[1.5rem] p-5 border border-indigo-100 shadow-sm flex flex-col h-full relative overflow-hidden group">
                 <div className="flex justify-between items-center mb-3">
                    <div>
@@ -323,8 +314,7 @@ export default function DailyTasksPage() {
                    </button>
                 </div>
                 
-                {/* 🚀 Satır Aralıkları Kısıldı, Scroll İhtimali Düşürüldü */}
-                <div className="flex-1 space-y-0.5">
+                <div className="flex-1 space-y-0.5 max-h-[160px] overflow-y-auto scrollbar-thin scrollbar-thumb-indigo-200">
                    {orderedPersonnel.map((p, index) => (
                       <div 
                          key={p.id} 
@@ -344,11 +334,10 @@ export default function DailyTasksPage() {
                             onChange={e => handlePersonnelRevenueChange(index, e.target.value)}
                             onKeyDown={e => handlePersKeyDown(e, index)}
                             onPaste={e => handlePersPaste(e, index)}
-                            className="w-24 p-0.5 bg-white border border-indigo-100 rounded text-right font-black text-indigo-700 text-xs outline-none focus:border-indigo-500 shadow-inner h-5"
+                            className="w-28 p-0.5 bg-white border border-indigo-100 rounded text-right font-black text-indigo-700 text-xs outline-none focus:border-indigo-500 shadow-inner h-5"
                          />
                       </div>
                    ))}
-                   {orderedPersonnel.length === 0 && <p className="text-[10px] text-indigo-400 font-bold text-center mt-4">Personel bulunamadı.</p>}
                 </div>
 
                 <div className="mt-2 pt-1.5 border-t border-indigo-100 flex justify-between items-center">
@@ -357,14 +346,14 @@ export default function DailyTasksPage() {
                 </div>
              </div>
 
-             <PersonnelPerformanceCard personnelSales={orderedPersonnel} hybridRealizedSales={hybridRealizedSales} realizedPercentage={realizedPercentage} selectedStoreName={storeName} />
+             {/* 🚀 MÜDÜRLERİN FİLTRELENDİĞİ RAPOR KARTI */}
+             <PersonnelPerformanceCard personnelSales={personnelForReport} hybridRealizedSales={hybridRealizedSales} realizedPercentage={realizedPercentage} selectedStoreName={storeName} />
+             
              <OwaMailCard reportEmail={reportEmail} setReportEmail={setReportEmail} owaLink={owaLink} handleSaveEmail={handleSaveEmail} disabled={!myStoreId} />
           </section>
 
-          {/* 🚀 ALT KISIM: KASA İŞLEMLERİ */}
           <div className="grid grid-cols-1 xl:grid-cols-12 gap-4 items-start">
             
-            {/* 🚀 SOL: NAKİT MATRİSİ (Satır Toplamlı & Sıkıştırılmış) */}
             <div className="xl:col-span-3 bg-white px-4 py-4 rounded-[1.5rem] border border-slate-100 shadow-sm flex flex-col justify-between">
               <div>
                 <div className="flex justify-between items-center mb-2">
@@ -374,7 +363,6 @@ export default function DailyTasksPage() {
                 <div className="flex flex-col gap-0.5">
                   {DENOMINATIONS.map((d, index) => {
                      const rowTotal = (Number(cashCounts[d.label]) || 0) * d.value;
-                     
                      return (
                         <div key={d.label} className="flex items-center gap-1 px-1 py-0.5 hover:bg-slate-50 rounded transition-colors border border-transparent hover:border-slate-100">
                           <span className="font-bold text-slate-500 text-[10px] w-12">{d.label}</span>
@@ -385,7 +373,6 @@ export default function DailyTasksPage() {
                             onChange={e => setCashCounts({...cashCounts, [d.label]: e.target.value})}
                             onKeyDown={e => handleKeyDown(e, index)}
                           />
-                          {/* 🚀 YENİ: KİBAR SATIR TOPLAMI */}
                           <span className="text-[9px] font-black text-slate-300 text-right flex-1 truncate">
                              {rowTotal > 0 ? `${rowTotal.toLocaleString('tr-TR')} ₺` : '-'}
                           </span>
@@ -400,9 +387,7 @@ export default function DailyTasksPage() {
               </div>
             </div>
 
-            {/* SAĞ: ÖZET, MASRAFLAR VE KAYDET BUTONLARI */}
             <div className="xl:col-span-9 flex flex-col gap-4">
-              
               <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 items-stretch">
                  <div className="sm:col-span-2 bg-slate-900 rounded-[1.5rem] p-5 shadow-lg flex flex-col sm:flex-row items-center justify-between gap-4">
                     <div className="flex items-center gap-3 w-full sm:w-auto">
@@ -433,7 +418,6 @@ export default function DailyTasksPage() {
               </div>
 
               <div className="grid grid-cols-1 lg:grid-cols-3 gap-4 items-start">
-                  
                   <div className="bg-white p-5 rounded-[1.5rem] border border-slate-100 shadow-sm flex flex-col gap-3">
                     <select className="w-full p-2.5 bg-slate-50 border border-slate-100 rounded-xl text-[10px] font-black uppercase tracking-widest text-slate-700 outline-none focus:border-indigo-300" value={selectedStaff} onChange={e => setSelectedStaff(e.target.value)}>
                        <option value="">Personel Seçiniz</option>
@@ -471,11 +455,8 @@ export default function DailyTasksPage() {
                   </div>
               </div>
 
-              {/* BÜYÜK BUTONLAR */}
               <div className="flex gap-3 w-full">
-                  <button onClick={() => setIsModalOpen(true)} className="flex-1 bg-slate-900 text-white py-4 rounded-[1rem] font-black text-xs uppercase tracking-widest hover:bg-slate-800 transition-all shadow-md active:scale-95">
-                    📱 KASA RAPORUNU SMS İLE PAYLAŞ
-                  </button>
+                  <button onClick={() => setIsModalOpen(true)} className="flex-1 bg-slate-900 text-white py-4 rounded-[1rem] font-black text-xs uppercase tracking-widest hover:bg-slate-800 transition-all shadow-md active:scale-95">📱 KASA RAPORUNU SMS İLE PAYLAŞ</button>
                   <button onClick={handleSaveKasa} disabled={isSaving} className="flex-1 bg-emerald-600 text-white py-4 rounded-[1rem] font-black text-xs uppercase tracking-widest shadow-md hover:bg-emerald-700 transition-all disabled:opacity-50">
                     {isSaving ? "İŞLENİYOR..." : "💾 TÜM KASAYI SİSTEME KAYDET"}
                   </button>
@@ -485,24 +466,13 @@ export default function DailyTasksPage() {
           </div>
         </div>
 
-        {/* 📱 KASA SMS MODAL */}
         {isModalOpen && (
             <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm animate-in fade-in duration-200" onClick={() => setIsModalOpen(false)}>
                 <div className="bg-white rounded-3xl p-6 w-full max-w-sm shadow-2xl relative" onClick={e => e.stopPropagation()}>
-                    <button onClick={() => setIsModalOpen(false)} className="absolute top-4 right-4 text-slate-400 hover:text-slate-700 bg-slate-100 rounded-full p-1.5">
-                        <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M6 18L18 6M6 6l12 12" /></svg>
-                    </button>
-                    <div className="text-center mb-6">
-                        <h3 className="text-lg font-black text-slate-800">Kasa Raporu</h3>
-                        <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mt-1">Whatsapp Grubuna Gönder</p>
-                    </div>
-                    <div className="bg-slate-50 p-4 rounded-2xl border border-slate-100 flex justify-center mb-6">
-                        {/* eslint-disable-next-line @next/next/no-img-element */}
-                        <img src={qrCodeUrl} alt="QR Code" className="w-48 h-48 object-contain rounded-xl shadow-sm" />
-                    </div>
-                    <button onClick={handleCopyText} className={`w-full py-4 rounded-xl font-black text-xs uppercase tracking-widest flex items-center justify-center gap-2 transition-all shadow-md ${isCopied ? 'bg-emerald-500 text-white shadow-emerald-200' : 'bg-slate-900 text-white hover:bg-slate-800 shadow-slate-200'}`}>
-                        {isCopied ? <><span>✅</span> KOPYALANDI!</> : <><span>📝</span> METNİ KOPYALA</>}
-                    </button>
+                    <button onClick={() => setIsModalOpen(false)} className="absolute top-4 right-4 text-slate-400 hover:text-slate-700 bg-slate-100 rounded-full p-1.5"><svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M6 18L18 6M6 6l12 12" /></svg></button>
+                    <div className="text-center mb-6"><h3 className="text-lg font-black text-slate-800">Kasa Raporu</h3><p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mt-1">Whatsapp Grubuna Gönder</p></div>
+                    <div className="bg-slate-50 p-4 rounded-2xl border border-slate-100 flex justify-center mb-6"><img src={qrCodeUrl} alt="QR Code" className="w-48 h-48 object-contain rounded-xl shadow-sm" /></div>
+                    <button onClick={handleCopyText} className={`w-full py-4 rounded-xl font-black text-xs uppercase tracking-widest flex items-center justify-center gap-2 transition-all shadow-md ${isCopied ? 'bg-emerald-500 text-white shadow-emerald-200' : 'bg-slate-900 text-white hover:bg-slate-800 shadow-slate-200'}`}>{isCopied ? <><span>✅</span> KOPYALANDI!</> : <><span>📝</span> METNİ KOPYALA</>}</button>
                 </div>
             </div>
         )}
