@@ -98,6 +98,8 @@ model Store {
   // YENİ: Mağaza Personel Aylık Veri İlişkisi (Performans Motoru İçin)
   monthlyData      PersonnelMonthlyData[]
 
+  inventoryCounts InventoryCount[] @relation("StoreToInventoryCount")
+
   @@index([regionId])
   @@index([cityId])
   dailyTasks  DailyTask[]
@@ -351,4 +353,22 @@ model DailyTask {
   updatedAt     DateTime @updatedAt
 
   @@index([storeId, date])
+}
+
+model InventoryCount {
+  id          Int      @id @default(autoincrement())
+  storeId     String
+  brand       String
+  stok        Int      @default(0)
+  teknik      Int      @default(0)
+  oms         Int      @default(0)
+  disVitrin   Int      @default(0)
+  icVitrin    Int      @default(0)
+  depo        Int      @default(0)
+  description String?  @db.Text
+  updatedAt   DateTime @updatedAt
+
+  store       Store    @relation("StoreToInventoryCount", fields: [storeId], references: [id], onDelete: Cascade)
+
+  @@unique([storeId, brand])
 }
