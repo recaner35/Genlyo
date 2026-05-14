@@ -7,15 +7,16 @@ import { signOut, useSession } from "next-auth/react";
 
 const MENU_ITEMS = [
   { name: "Ana Sayfa", path: "/dashboard", icon: "📊", roles: ["ADMIN", "REGION_MANAGER", "STORE_MANAGER"] },
+  { name: "Performans Paneli", path: "/dashboard/store-performance", icon: "🏆", roles: ["ADMIN", "STORE_MANAGER"] },
   { name: "Kanal Yönetimi", path: "/dashboard/channels", icon: "🏢", roles: ["ADMIN"] },
   { name: "Bölge Yönetimi", path: "/dashboard/regions", icon: "🗺️", roles: ["ADMIN"] },
-  { name: "Mağaza Yönetimi", path: "/dashboard/stores", icon: "🏪", roles: ["ADMIN", "REGION_MANAGER"] },
-  { name: "Günlük Kasa Raporu", path: "/dashboard/daily-tasks", icon: "💵", roles: ["ADMIN", "REGION_MANAGER", "STORE_MANAGER"] },
+  { name: "Kapanış Kokpiti", path: "/dashboard/daily-tasks", icon: "💵", roles: ["ADMIN", "REGION_MANAGER", "STORE_MANAGER"] },
+  { name: "Sayım Defteri", path: "/dashboard/inventory-count", icon: "📋", roles: ["ADMIN", "STORE_MANAGER"] },
   { name: "Personel Yönetimi", path: "/dashboard/personnel", icon: "👥", roles: ["ADMIN", "REGION_MANAGER", "STORE_MANAGER"] },
   { name: "Prim Kuralları", path: "/dashboard/bonus-rules", icon: "⚙️", roles: ["ADMIN"] }, 
   { name: "Hedef Yönetimi", path: "/dashboard/targets", icon: "🎯", roles: ["ADMIN", "REGION_MANAGER", "STORE_MANAGER"] },
   { name: "Ciro Yönetimi", path: "/dashboard/sales", icon: "💰", roles: ["ADMIN", "REGION_MANAGER", "STORE_MANAGER"] },
-  { name: "Performans Paneli", path: "/dashboard/store-performance", icon: "🏆", roles: ["ADMIN", "STORE_MANAGER"] }, 
+  { name: "Mağaza Yönetimi", path: "/dashboard/stores", icon: "🏪", roles: ["ADMIN", "REGION_MANAGER"] },
   { name: "Raporlar", path: "/dashboard/analysis", icon: "📈", roles: ["ADMIN", "REGION_MANAGER"] },
   { name: "YZ Tahminleri", path: "/dashboard/analysis/motor2", icon: "🤖", roles: ["ADMIN"] },
 ];
@@ -141,7 +142,6 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
       {/* 🌌 ANA İÇERİK ALANI */}
       <main className="flex-1 h-screen overflow-hidden flex flex-col bg-slate-50">
         <div className="flex-1 overflow-y-auto scroll-smooth pt-16 md:pt-0">
-            {/* İçerik Konteyneri: 1920px'te çok yayılmaması için max-width eklendi */}
             <div className="max-w-[1600px] mx-auto min-h-full">
                 {children}
             </div>
