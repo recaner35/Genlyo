@@ -22,6 +22,7 @@ const DENOMINATIONS = [
 export default function DailyTasksPage() {
   const { data: session } = useSession();
   
+  // KASA STATE'LERİ
   const [cashCounts, setCashCounts] = useState<Record<string, string>>({});
   const [expenses, setExpenses] = useState<Expense[]>([{ id: Date.now(), amount: 0, date: new Date().toISOString().split('T')[0], desc: "" }]);
   const [erpTotal, setErpTotal] = useState<number>(0);
@@ -35,6 +36,7 @@ export default function DailyTasksPage() {
   const inputRefs = useRef<(HTMLInputElement | null)[]>([]);
   const persInputRefs = useRef<(HTMLInputElement | null)[]>([]);
 
+  // KART STATE'LERİ
   const [myStoreId, setMyStoreId] = useState<string | null>(null);
   const [storeName, setStoreName] = useState<string>("Yükleniyor...");
   const [quickRevenue, setQuickRevenue] = useState("");
@@ -43,9 +45,14 @@ export default function DailyTasksPage() {
   const [hybridRealizedSales, setHybridRealizedSales] = useState(0);
   const [currentMonthTarget, setCurrentMonthTarget] = useState(0);
 
+  // PERSONEL CİRO STATE'LERİ
   const [orderedPersonnel, setOrderedPersonnel] = useState<any[]>([]);
   const [draggedIndex, setDraggedIndex] = useState<number | null>(null);
   const [isSavingPersonnel, setIsSavingPersonnel] = useState(false);
+
+  // 🚀 YENİ: CİRO GİRİŞİ FORMATLAMA STATE'LERİ
+  const [focusedPersIndex, setFocusedPersIndex] = useState<number | null>(null);
+  const [persInputValue, setPersInputValue] = useState<string>("");
 
   const today = new Date();
   const currentDay = today.getDate();
@@ -74,7 +81,6 @@ export default function DailyTasksPage() {
             setMyStoreId(sData.allowedStoreId);
             setReportEmail(localStorage.getItem(`genlyo_mail_${sData.allowedStoreId}`) || "");
             
-            // 🚀 MAĞAZA ADINI DOĞRU EŞLEŞTİRME
             const myStore = allStores.find((s: any) => s.id === sData.allowedStoreId);
             if (myStore) setStoreName(myStore.name);
 
@@ -103,7 +109,6 @@ export default function DailyTasksPage() {
            const hData = await resHybrid.json();
            setCurrentMonthTarget(hData.currTarget || 0);
         }
-
       } catch (err) {} finally { setLoading(false); }
     };
     initPage();
@@ -137,21 +142,19 @@ export default function DailyTasksPage() {
       } catch (err) {}
   };
 
-  // 🚀 RAPOR İÇİN MÜDÜRÜ FİLTRELEME
   const personnelForReport = useMemo(() => {
     return orderedPersonnel.filter(p => !p.title?.name?.toLowerCase().includes("müdür"));
   }, [orderedPersonnel]);
+
+  // =======================================================================
+  // PERSONEL CİRO GİRİŞİ FONKSİYONLARI (SÜRÜKLE, YAPIŞTIR, KAYDET)
+  // =======================================================================
 
   const handleDragStart = (e: React.DragEvent, index: number) => {
       setDraggedIndex(index);
       e.dataTransfer.effectAllowed = "move";
   };
-  
-  const handleDragOver = (e: React.DragEvent) => {
-      e.preventDefault();
-      e.dataTransfer.dropEffect = "move"; 
-  };
-  
+  const handleDragOver = (e: React.DragEvent) => { e.preventDefault(); e.dataTransfer.dropEffect = "move"; };
   const handleDrop = (e: React.DragEvent, index: number) => {
       e.preventDefault();
       if (draggedIndex === null || draggedIndex === index) return;
@@ -185,12 +188,8 @@ export default function DailyTasksPage() {
           }
       });
       setOrderedPersonnel(newArr);
-  };
-
-  const handlePersonnelRevenueChange = (index: number, val: string) => {
-      const newArr = [...orderedPersonnel];
-      newArr[index].ownRevenue = parseFloat(val) || 0;
-      setOrderedPersonnel(newArr);
+      setFocusedPersIndex(null);
+      persInputRefs.current[startIndex]?.blur();
   };
 
   const handleSavePersonnelRevenues = async () => {
@@ -212,6 +211,10 @@ export default function DailyTasksPage() {
   };
 
   const totalPersonnelRevenue = orderedPersonnel.reduce((acc, p) => acc + (Number(p.ownRevenue) || 0), 0);
+
+  // =======================================================================
+  // KASA VE DİĞER KART FONKSİYONLARI
+  // =======================================================================
 
   const handleQuickSave = async () => {
     if (!quickRevenue || !myStoreId) return;
@@ -276,10 +279,7 @@ export default function DailyTasksPage() {
 
   const smsText = `${new Date().toLocaleDateString('tr-TR')} - ${shiftType}\nSistem: ${erpTotal.toLocaleString('tr-TR')} ₺\nReel: ${totals.tlPhysical.toLocaleString('tr-TR')} ₺\nMasraf: ${totals.totalExpenses.toLocaleString('tr-TR')} ₺\n${totals.diff >= 0 ? 'Fazla' : 'Eksik'} Tutar: ${Math.abs(totals.diff).toFixed(2)} ₺\nKontrol: ${selectedStaff}`;
   const qrCodeUrl = `https://api.qrserver.com/v1/create-qr-code/?size=300x300&data=${encodeURIComponent(smsText)}`;
-
-  const handleCopyText = async () => {
-      try { await navigator.clipboard.writeText(smsText); setIsCopied(true); setTimeout(() => setIsCopied(false), 2000); } catch (err) {}
-  };
+  const handleCopyText = async () => { try { await navigator.clipboard.writeText(smsText); setIsCopied(true); setTimeout(() => setIsCopied(false), 2000); } catch (err) {} };
 
   const realizedPercentage = currentMonthTarget > 0 ? (hybridRealizedSales / currentMonthTarget) * 100 : 0;
   
@@ -300,9 +300,9 @@ export default function DailyTasksPage() {
           </div>
 
           <section className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-4 items-stretch">
-             
              <QuickSaveCard formattedDateString={formattedDateString} quickRevenue={quickRevenue} setQuickRevenue={setQuickRevenue} handleQuickSave={handleQuickSave} isSavingQuick={isSavingQuick} disabled={!myStoreId} />
              
+             {/* 🚀 PERSONEL CİRO GİRİŞİ KARTI (FORMATLI VE SCROLLSUZ) */}
              <div className="bg-gradient-to-br from-indigo-50 to-blue-50 rounded-[1.5rem] p-5 border border-indigo-100 shadow-sm flex flex-col h-full relative overflow-hidden group">
                 <div className="flex justify-between items-center mb-3">
                    <div>
@@ -314,7 +314,8 @@ export default function DailyTasksPage() {
                    </button>
                 </div>
                 
-                <div className="flex-1 space-y-0.5 max-h-[160px] overflow-y-auto scrollbar-thin scrollbar-thumb-indigo-200">
+                {/* Scroll ihtimali ortadan kaldırıldı (max-h-260px) */}
+                <div className="flex-1 space-y-0.5 max-h-[260px] overflow-y-auto scrollbar-none">
                    {orderedPersonnel.map((p, index) => (
                       <div 
                          key={p.id} 
@@ -322,16 +323,34 @@ export default function DailyTasksPage() {
                          onDragStart={(e) => handleDragStart(e, index)} 
                          onDragOver={handleDragOver} 
                          onDrop={(e) => handleDrop(e, index)}
-                         className="flex items-center gap-1 bg-white/60 hover:bg-white p-1 rounded-md border border-indigo-50 transition-colors cursor-grab active:cursor-grabbing select-none"
+                         className="flex items-center gap-1 bg-white/60 hover:bg-white p-0.5 rounded-md border border-indigo-50 transition-colors cursor-grab active:cursor-grabbing select-none"
                       >
                          <div className="text-slate-300 text-[8px] px-0.5">⋮⋮</div>
                          <span className="text-[10px] font-bold text-indigo-950 truncate flex-1 leading-tight">{p.firstName} {p.lastName}</span>
+                         {/* 🚀 BİNLER AYIRICILI AKILLI İNPUT */}
                          <input 
                             ref={el => { persInputRefs.current[index] = el; }}
-                            type="number" 
-                            value={p.ownRevenue || ""} 
+                            type="text" 
+                            value={
+                               focusedPersIndex === index 
+                                  ? persInputValue 
+                                  : (p.ownRevenue ? Math.round(p.ownRevenue).toLocaleString('tr-TR') : "")
+                            } 
                             placeholder="0"
-                            onChange={e => handlePersonnelRevenueChange(index, e.target.value)}
+                            onFocus={() => {
+                               setFocusedPersIndex(index);
+                               setPersInputValue(p.ownRevenue ? p.ownRevenue.toString().replace('.', ',') : "");
+                            }}
+                            onBlur={() => setFocusedPersIndex(null)}
+                            onChange={e => {
+                               // Sadece rakam ve virgüle izin ver
+                               const val = e.target.value.replace(/[^0-9,]/g, '');
+                               setPersInputValue(val);
+                               const cleanVal = val.replace(',', '.');
+                               const newArr = [...orderedPersonnel];
+                               newArr[index].ownRevenue = cleanVal === "" ? 0 : parseFloat(cleanVal);
+                               setOrderedPersonnel(newArr);
+                            }}
                             onKeyDown={e => handlePersKeyDown(e, index)}
                             onPaste={e => handlePersPaste(e, index)}
                             className="w-28 p-0.5 bg-white border border-indigo-100 rounded text-right font-black text-indigo-700 text-xs outline-none focus:border-indigo-500 shadow-inner h-5"
@@ -346,14 +365,13 @@ export default function DailyTasksPage() {
                 </div>
              </div>
 
-             {/* 🚀 MÜDÜRLERİN FİLTRELENDİĞİ RAPOR KARTI */}
              <PersonnelPerformanceCard personnelSales={personnelForReport} hybridRealizedSales={hybridRealizedSales} realizedPercentage={realizedPercentage} selectedStoreName={storeName} />
-             
              <OwaMailCard reportEmail={reportEmail} setReportEmail={setReportEmail} owaLink={owaLink} handleSaveEmail={handleSaveEmail} disabled={!myStoreId} />
           </section>
 
           <div className="grid grid-cols-1 xl:grid-cols-12 gap-4 items-start">
             
+            {/* 🚀 SOL: NAKİT MATRİSİ (Şık Satır Toplamlarıyla) */}
             <div className="xl:col-span-3 bg-white px-4 py-4 rounded-[1.5rem] border border-slate-100 shadow-sm flex flex-col justify-between">
               <div>
                 <div className="flex justify-between items-center mb-2">
@@ -364,17 +382,18 @@ export default function DailyTasksPage() {
                   {DENOMINATIONS.map((d, index) => {
                      const rowTotal = (Number(cashCounts[d.label]) || 0) * d.value;
                      return (
-                        <div key={d.label} className="flex items-center gap-1 px-1 py-0.5 hover:bg-slate-50 rounded transition-colors border border-transparent hover:border-slate-100">
+                        <div key={d.label} className="flex items-center gap-1.5 px-1 py-0.5 hover:bg-slate-50 rounded transition-colors border border-transparent hover:border-slate-100">
                           <span className="font-bold text-slate-500 text-[10px] w-12">{d.label}</span>
                           <input 
                             ref={el => { inputRefs.current[index] = el; }}
                             type="number" value={cashCounts[d.label] || ""} placeholder="0"
-                            className="w-14 py-0.5 px-1 bg-slate-50 border border-slate-100 rounded text-center font-black text-indigo-700 text-xs outline-none focus:border-indigo-400 focus:bg-white transition-all h-6" 
+                            className="w-12 py-0.5 px-1 bg-slate-50 border border-slate-100 rounded text-center font-black text-indigo-700 text-xs outline-none focus:border-indigo-400 focus:bg-white transition-all h-6" 
                             onChange={e => setCashCounts({...cashCounts, [d.label]: e.target.value})}
                             onKeyDown={e => handleKeyDown(e, index)}
                           />
-                          <span className="text-[9px] font-black text-slate-300 text-right flex-1 truncate">
-                             {rowTotal > 0 ? `${rowTotal.toLocaleString('tr-TR')} ₺` : '-'}
+                          {/* 🚀 SATIR TOPLAMI (Kibar Görünüm) */}
+                          <span className="text-[10px] font-black text-slate-400/80 text-right flex-1 tracking-tight">
+                             {rowTotal > 0 ? `= ${rowTotal.toLocaleString('tr-TR')} ₺` : ''}
                           </span>
                         </div>
                      )
