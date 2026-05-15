@@ -19,6 +19,7 @@ const MENU_ITEMS = [
   { name: "Mağaza Yönetimi", path: "/dashboard/stores", icon: "🏪", roles: ["ADMIN", "REGION_MANAGER"] },
   { name: "Raporlar", path: "/dashboard/analysis", icon: "📈", roles: ["ADMIN", "REGION_MANAGER"] },
   { name: "YZ Tahminleri", path: "/dashboard/analysis/motor2", icon: "🤖", roles: ["ADMIN"] },
+  { name: "Şifre Değiştir", path: "/dashboard/profile", icon: "🔑", roles: ["ADMIN", "REGION_MANAGER", "STORE_MANAGER", "USER"] },
 ];
 
 export default function DashboardLayout({ children }: { children: React.ReactNode }) {
