@@ -223,7 +223,7 @@ export default function RosterPage() {
           if (s.value === "AÇILIŞ") return shiftTimes.ACILIS;
           if (s.value === "KAPANIŞ") return shiftTimes.KAPANIS;
           if (s.value === "ARA") return shiftTimes.ARA;
-          return s.value || ""; // FULL, İZİN veya Özel Saatleri (11-19) aynen bırak
+          return s.value || ""; // FULL, İZİN veya Özel Saatleri aynen bırak
        });
 
        const storeDisplay = idx === 0 ? storeName.toUpperCase() : "";
@@ -240,9 +240,15 @@ export default function RosterPage() {
     ];
 
     // A3'ten başlayıp tablonun sonuna kadar Mağaza Adı için hücreleri dikey birleştir
-    if (roster.length > 1) {
+    if (roster.length > 0) {
       ws['!merges'].push({ s: { r: 2, c: 0 }, e: { r: 1 + roster.length, c: 0 } });
     }
+
+    // Sütun genişlikleri (Daha estetik durması için)
+    ws['!cols'] = [
+      { wch: 25 }, { wch: 15 }, { wch: 15 }, 
+      { wch: 12 }, { wch: 12 }, { wch: 12 }, { wch: 12 }, { wch: 12 }, { wch: 12 }, { wch: 12 }
+    ];
 
     const wb = XLSX.utils.book_new();
     XLSX.utils.book_append_sheet(wb, ws, "Çalışma_Sayfası1");
