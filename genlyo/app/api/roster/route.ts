@@ -23,11 +23,12 @@ export async function GET(request: Request) {
     const user = await prisma.user.findUnique({ where: { email: session.user.email } });
     if (!user || !user.storeId) return NextResponse.json({ error: "Mağaza bulunamadı" }, { status: 404 });
 
-    // Terminal/Vercel bypass: Raw SQL kullanarak doğrudan tabloya bağlanıyoruz
+    const targetDate = new Date(date);
+
     const schedule: any = await prisma.$queryRaw`
       SELECT "data", "config" FROM "WeeklySchedule" 
       WHERE "storeId" = ${user.storeId} 
-      AND "weekStartDate" = ${new Date(date)}
+      AND "weekStartDate" = ${targetDate}
     `;
 
     if (schedule && schedule.length > 0) {
@@ -51,9 +52,12 @@ export async function POST(request: Request) {
     const user = await prisma.user.findUnique({ where: { email: session.user.email } });
     if (!user || !user.storeId) return NextResponse.json({ error: "Mağaza bulunamadı" }, { status: 404 });
 
+    const targetDate = new Date(weekStart);
+
+    // 🚀 HATA BURADA ÇÖZÜLDÜ: JSON.stringify ile verileri PostgreSQL'in seveceği formata dönüştürdük
     await prisma.$executeRaw`
       INSERT INTO "WeeklySchedule" ("storeId", "weekStartDate", "data", "config", "updatedAt")
-      VALUES (${user.storeId}, ${new Date(weekStart)}, ${data}::jsonb, ${config}::jsonb, NOW())
+      VALUES (${user.storeId}, ${targetDate}, ${JSON.stringify(data)}::jsonb, ${JSON.stringify(config)}::jsonb, NOW())
       ON CONFLICT ("storeId", "weekStartDate")
       DO UPDATE SET "data" = EXCLUDED."data", "config" = EXCLUDED."config", "updatedAt" = NOW()
     `;
