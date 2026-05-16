@@ -6,6 +6,7 @@ import * as XLSX from "xlsx";
 
 const DAYS = ["Pazartesi", "Salı", "Çarşamba", "Perşembe", "Cuma", "Cumartesi", "Pazar"];
 const SHIFT_OPTIONS = ["AÇILIŞ", "KAPANIŞ", "ARA", "FULL", "İZİN", "RAPOR"];
+const MONTHS = ["Oca", "Şub", "Mar", "Nis", "May", "Haz", "Tem", "Ağu", "Eyl", "Eki", "Kas", "Ara"];
 
 interface ShiftCell { value: string; isFixed: boolean; }
 interface RosterRow { personnelId: number; firstName: string; lastName: string; title: string; shifts: ShiftCell[]; }
@@ -32,7 +33,6 @@ export default function RosterPage() {
     FULL: "10-22"
   });
 
-  // VERİTABANINDAN VE PERSONELDEN VERİLERİ YÜKLE
   const loadRoster = useCallback(async () => {
     const personnelRes = await fetch('/api/personnel');
     const personnelData = await personnelRes.json();
@@ -99,7 +99,6 @@ export default function RosterPage() {
     setRoster(newRoster);
   };
 
-  // AKILLI OTO-DOLDURMA ALGORİTMASI
   const handleSmartFill = () => {
     let newRoster = JSON.parse(JSON.stringify(roster));
 
@@ -200,35 +199,53 @@ export default function RosterPage() {
     }
   };
 
-  // 🚀 BIREBIR TEMPLATE UYUMLU EXCEL / ODS EXPORT MOTORU
+  // 🚀 KUSURSUZ ŞABLONLU EXCEL / ODS EXPORT MOTORU
   const handleExport = (format: "xlsx" | "ods") => {
     const wsData: any[][] = [];
     
-    // Satır 1: Ana Başlıklar
-    wsData.push(["MAĞAZA", "Adı", "Soyadı", ...DAYS]);
+    // Satır 1 (A1: MAĞAZA, B1: ADI, C1: SOYADI, D1-J1: Günler)
+    wsData.push(["MAĞAZA", "ADI", "SOYADI", ...DAYS]);
     
-    // Satır 2: Tarih Bilgileri (Hizalamayı bozmamak için ilk 3 sütun boş)
-    const dateRow = ["", "", ""];
+    // Satır 2 (Tarihler: "4.May.26" formatında)
+    const dateRow = ["", "", ""]; // A2, B2, C2 boş kalacak (Birleşecekler)
     DAYS.forEach((_, i) => {
       const d = new Date(weekStart);
       d.setDate(d.getDate() + i);
-      dateRow.push(d.toLocaleDateString("tr-TR"));
+      const dateStr = `${d.getDate()}.${MONTHS[d.getMonth()]}.${d.getFullYear().toString().slice(-2)}`;
+      dateRow.push(dateStr);
     });
     wsData.push(dateRow);
 
-    // Satır 3 ve Sonrası: Personel Verileri
+    // Satır 3 ve Sonrası (Personel Listesi)
     roster.forEach((row, idx) => {
-       const shiftValues = row.shifts.map(s => s.value || "");
-       // Mağaza adı sadece en üstteki satırda yazar, altındakiler şablondaki gibi boş kalır
+       // Çıktıda yazıları rakamlara (saatlere) çeviren kısım
+       const shiftValues = row.shifts.map(s => {
+          if (s.value === "AÇILIŞ") return shiftTimes.ACILIS;
+          if (s.value === "KAPANIŞ") return shiftTimes.KAPANIS;
+          if (s.value === "ARA") return shiftTimes.ARA;
+          return s.value || ""; // FULL, İZİN veya Özel Saatleri (11-19) aynen bırak
+       });
+
        const storeDisplay = idx === 0 ? storeName.toUpperCase() : "";
        wsData.push([storeDisplay, row.firstName.toUpperCase(), row.lastName.toUpperCase(), ...shiftValues]);
     });
 
     const ws = XLSX.utils.aoa_to_sheet(wsData);
+
+    // 🔗 HÜCRE BİRLEŞTİRME KOMUTLARI (!merges)
+    ws['!merges'] = [
+      { s: { r: 0, c: 0 }, e: { r: 1, c: 0 } }, // A1 ve A2 birleştir (MAĞAZA)
+      { s: { r: 0, c: 1 }, e: { r: 1, c: 1 } }, // B1 ve B2 birleştir (ADI)
+      { s: { r: 0, c: 2 }, e: { r: 1, c: 2 } }, // C1 ve C2 birleştir (SOYADI)
+    ];
+
+    // A3'ten başlayıp tablonun sonuna kadar Mağaza Adı için hücreleri dikey birleştir
+    if (roster.length > 1) {
+      ws['!merges'].push({ s: { r: 2, c: 0 }, e: { r: 1 + roster.length, c: 0 } });
+    }
+
     const wb = XLSX.utils.book_new();
-    XLSX.utils.book_append_sheet(wb, ws, "Çalışma Sayfası1");
-    
-    // Dosya indirme tetiği
+    XLSX.utils.book_append_sheet(wb, ws, "Çalışma_Sayfası1");
     XLSX.writeFile(wb, `Haftalik_Cizelge_${weekStart}.${format}`);
   };
 
@@ -258,7 +275,6 @@ export default function RosterPage() {
             {isSaving ? "KAYDEDİLİYOR..." : "💾 SİSTEME KAYDET"}
           </button>
 
-          {/* GÜNCELLENEN VE GERİ GELEN İNDİRME BUTONLARI */}
           <button onClick={() => handleExport("xlsx")} className="bg-emerald-600 text-white px-4 py-3 rounded-xl font-black text-[10px] uppercase tracking-widest shadow-md hover:bg-emerald-700 transition-all">
             .XLSX İNDİR
           </button>
