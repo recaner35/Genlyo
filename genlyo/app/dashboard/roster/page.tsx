@@ -6,6 +6,7 @@ import * as XLSX from "xlsx";
 
 const DAYS = ["Pazartesi", "Salı", "Çarşamba", "Perşembe", "Cuma", "Cumartesi", "Pazar"];
 const SHIFT_OPTIONS = ["AÇILIŞ", "KAPANIŞ", "ARA", "FULL", "İZİN", "RAPOR"];
+const MONTHS = ["Oca", "Şub", "Mar", "Nis", "May", "Haz", "Tem", "Ağu", "Eyl", "Eki", "Kas", "Ara"];
 
 interface ShiftCell { value: string; isFixed: boolean; }
 interface RosterRow { personnelId: number; firstName: string; lastName: string; title: string; shifts: ShiftCell[]; }
@@ -14,7 +15,7 @@ export default function RosterPage() {
   const { data: session } = useSession();
   const [staff, setStaff] = useState<any[]>([]);
   const [roster, setRoster] = useState<RosterRow[]>([]);
-  const [storeName, setStoreName] = useState("YÜKLENİYOR...");
+  const [storeName, setStoreName] = useState("MUĞLA FETHİYE ERASTA");
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
   
@@ -32,7 +33,6 @@ export default function RosterPage() {
     FULL: "10-22"
   });
 
-  // PERSONELİ VE HAFTANIN KAYITLI SHİFTİNİ GETİRİR
   const loadRoster = useCallback(async () => {
     const personnelRes = await fetch('/api/personnel');
     const personnelData = await personnelRes.json();
@@ -45,11 +45,10 @@ export default function RosterPage() {
       setRoster(savedData.data);
       if (savedData.config) setShiftTimes(savedData.config);
     } else {
-      // O haftaya ait kayıt yoksa boş şablon oluştur
       const initialRoster = personnelData.map((p: any) => ({
         personnelId: p.id,
-        firstName: p.firstName,
-        lastName: p.lastName,
+        firstName: p.firstName.toUpperCase(),
+        lastName: p.lastName.toUpperCase(),
         title: p.title?.name || "",
         shifts: Array(7).fill({ value: "", isFixed: false })
       }));
@@ -62,7 +61,9 @@ export default function RosterPage() {
   useEffect(() => {
     fetch('/api/stores').then(res => res.json()).then(resData => {
        const stores = Array.isArray(resData) ? resData : (resData.store ? [resData.store] : []);
-       if (stores.length > 0) setStoreName(stores[0].name.toUpperCase());
+       if (stores.length > 0 && stores[0].name) {
+          setStoreName(stores[0].name.toUpperCase());
+       }
     });
   }, []);
 
@@ -98,11 +99,9 @@ export default function RosterPage() {
     setRoster(newRoster);
   };
 
-  // 🚀 ZİRVEYE ULAŞMIŞ AKILLI DOLDURMA ALGORİTMASI
   const handleSmartFill = () => {
     let newRoster = JSON.parse(JSON.stringify(roster));
 
-    // 1. Sabit olmayanları temizle
     newRoster.forEach((row: RosterRow) => {
        row.shifts.forEach(s => { if (!s.isFixed) s.value = ""; });
     });
@@ -110,13 +109,11 @@ export default function RosterPage() {
     let izinCounts = [0, 0, 0, 0, 0, 0, 0];
     newRoster.forEach((r: RosterRow) => r.shifts.forEach((s, d) => { if(s.value === "İZİN") izinCounts[d]++; }));
 
-    // 2. İZİN ATAMASI (Cuma, Cts, Pazar yasak! Sadece 0, 1, 2, 3 günleri)
     newRoster.forEach((r: RosterRow) => {
       let hasIzin = r.shifts.some(s => s.value === "İZİN");
       if (!hasIzin) {
          let allowedDays = [0, 1, 2, 3].filter(d => !r.shifts[d].isFixed && !r.shifts[d].value);
          if (allowedDays.length > 0) {
-            // En az iznin kullanıldığı günü bul (dengeli dağılım)
             allowedDays.sort((a, b) => izinCounts[a] - izinCounts[b]);
             let picked = allowedDays[0];
             r.shifts[picked].value = "İZİN";
@@ -125,24 +122,21 @@ export default function RosterPage() {
       }
     });
 
-    // 3. FULL ATAMASI (Biri izinliyse diğeri fulleyerek kapatır)
     newRoster.forEach((r: RosterRow) => {
       let hasFull = r.shifts.some(s => s.value === "FULL");
       if (!hasFull) {
-         // İzin olmayan günlerden birini seç. Öncelik: Başkasının izinli olduğu gün, sonra Hafta Sonu
          let allowedDays = [0, 1, 2, 3, 4, 5, 6].filter(d => !r.shifts[d].isFixed && r.shifts[d].value !== "İZİN");
          if (allowedDays.length > 0) {
             allowedDays.sort((a, b) => {
                let weightA = (izinCounts[a] * 10) + (a >= 4 ? 5 : 0);
                let weightB = (izinCounts[b] * 10) + (b >= 4 ? 5 : 0);
-               return weightB - weightA; // Azalan sıralama
+               return weightB - weightA;
             });
             r.shifts[allowedDays[0]].value = "FULL";
          }
       }
     });
 
-    // 4. MÜDÜR, İZİN ÖNCESİ/SONRASI VE 2 SABAH/AKŞAM HEDEFİ
     newRoster.forEach((row: RosterRow) => {
       const isManager = row.title.toLowerCase().includes("müdür");
       for (let d = 0; d < 7; d++) {
@@ -158,7 +152,6 @@ export default function RosterPage() {
       }
     });
 
-    // Kalan Boşlukları 2 Sabah / 2 Akşam Kapsamasıyla Karıştırarak Doldur
     for (let d = 0; d < 7; d++) {
        let acilisCount = 0; let kapanisCount = 0;
        newRoster.forEach((r: RosterRow) => {
@@ -167,7 +160,7 @@ export default function RosterPage() {
        });
 
        let unassigned = newRoster.filter((r: RosterRow) => !r.shifts[d].value);
-       unassigned.sort(() => Math.random() - 0.5); // Shuffle
+       unassigned.sort(() => Math.random() - 0.5);
 
        unassigned.forEach((row: RosterRow) => {
           let prev = d > 0 ? row.shifts[d-1].value : "";
@@ -189,7 +182,6 @@ export default function RosterPage() {
     setRoster(newRoster);
   };
 
-  // 💾 SİSTEME KAYDETME İŞLEMİ
   const handleSave = async () => {
     setIsSaving(true);
     try {
@@ -198,7 +190,7 @@ export default function RosterPage() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ weekStart, data: roster, config: shiftTimes })
       });
-      if (res.ok) alert("✅ Çizelge başarıyla veritabanına kaydedildi. Artık personeller görüntüleyebilir!");
+      if (res.ok) alert("✅ Çizelge başarıyla veritabanına kaydedildi!");
       else alert("❌ Kayıt sırasında bir hata oluştu.");
     } catch (err) {
        alert("❌ Sunucu hatası.");
@@ -207,23 +199,59 @@ export default function RosterPage() {
     }
   };
 
-  const exportToExcel = (format: "xlsx" | "ods") => {
+  // 🚀 KUSURSUZ ŞABLONLU EXCEL / ODS EXPORT MOTORU
+  const handleExport = (format: "xlsx" | "ods") => {
     const wsData: any[][] = [];
-    wsData.push(["MAĞAZA", "Adı", "Soyadı", ...DAYS]);
-    const dates = DAYS.map((_, i) => {
-      const d = new Date(weekStart); d.setDate(d.getDate() + i); return d.toLocaleDateString("tr-TR");
+    
+    // Satır 1 (A1: MAĞAZA, B1: ADI, C1: SOYADI, D1-J1: Günler)
+    wsData.push(["MAĞAZA", "ADI", "SOYADI", ...DAYS]);
+    
+    // Satır 2 (Tarihler: "4.May.26" formatında)
+    const dateRow = ["", "", ""]; // A2, B2, C2 boş kalacak (Birleşecekler)
+    DAYS.forEach((_, i) => {
+      const d = new Date(weekStart);
+      d.setDate(d.getDate() + i);
+      const dateStr = `${d.getDate()}.${MONTHS[d.getMonth()]}.${d.getFullYear().toString().slice(-2)}`;
+      dateRow.push(dateStr);
     });
-    wsData.push(["", "", "", ...dates]);
+    wsData.push(dateRow);
 
+    // Satır 3 ve Sonrası (Personel Listesi)
     roster.forEach((row, idx) => {
-       const shiftValues = row.shifts.map(s => s.value);
-       const storeDisplay = idx === 0 ? storeName : "";
-       wsData.push([storeDisplay, row.firstName, row.lastName, ...shiftValues]);
+       // Çıktıda yazıları rakamlara (saatlere) çeviren kısım
+       const shiftValues = row.shifts.map(s => {
+          if (s.value === "AÇILIŞ") return shiftTimes.ACILIS;
+          if (s.value === "KAPANIŞ") return shiftTimes.KAPANIS;
+          if (s.value === "ARA") return shiftTimes.ARA;
+          return s.value || ""; // FULL, İZİN veya Özel Saatleri aynen bırak
+       });
+
+       const storeDisplay = idx === 0 ? storeName.toUpperCase() : "";
+       wsData.push([storeDisplay, row.firstName.toUpperCase(), row.lastName.toUpperCase(), ...shiftValues]);
     });
 
     const ws = XLSX.utils.aoa_to_sheet(wsData);
+
+    // 🔗 HÜCRE BİRLEŞTİRME KOMUTLARI (!merges)
+    ws['!merges'] = [
+      { s: { r: 0, c: 0 }, e: { r: 1, c: 0 } }, // A1 ve A2 birleştir (MAĞAZA)
+      { s: { r: 0, c: 1 }, e: { r: 1, c: 1 } }, // B1 ve B2 birleştir (ADI)
+      { s: { r: 0, c: 2 }, e: { r: 1, c: 2 } }, // C1 ve C2 birleştir (SOYADI)
+    ];
+
+    // A3'ten başlayıp tablonun sonuna kadar Mağaza Adı için hücreleri dikey birleştir
+    if (roster.length > 0) {
+      ws['!merges'].push({ s: { r: 2, c: 0 }, e: { r: 1 + roster.length, c: 0 } });
+    }
+
+    // Sütun genişlikleri (Daha estetik durması için)
+    ws['!cols'] = [
+      { wch: 25 }, { wch: 15 }, { wch: 15 }, 
+      { wch: 12 }, { wch: 12 }, { wch: 12 }, { wch: 12 }, { wch: 12 }, { wch: 12 }, { wch: 12 }
+    ];
+
     const wb = XLSX.utils.book_new();
-    XLSX.utils.book_append_sheet(wb, ws, "Çizelge");
+    XLSX.utils.book_append_sheet(wb, ws, "Çalışma_Sayfası1");
     XLSX.writeFile(wb, `Haftalik_Cizelge_${weekStart}.${format}`);
   };
 
@@ -233,11 +261,11 @@ export default function RosterPage() {
       <div className="flex flex-col xl:flex-row justify-between items-start xl:items-center mb-6 gap-4">
         <div>
           <h1 className="text-3xl font-black text-slate-900 italic uppercase leading-none">Çizelge <span className="text-indigo-600">Motoru</span></h1>
-          <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mt-2">Haftalık Roster ve Mesai Yönetimi</p>
+          <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mt-2">Kurumsal Shift & Roster Yönetimi</p>
         </div>
         
         <div className="flex flex-wrap gap-2 items-center">
-          <input type="date" value={weekStart} onChange={(e) => setWeekStart(e.target.value)} className="px-4 py-3 bg-white border border-slate-200 rounded-xl text-xs font-black text-slate-700 outline-none focus:border-indigo-500 shadow-sm cursor-pointer" title="Haftayı Seç" />
+          <input type="date" value={weekStart} onChange={(e) => setWeekStart(e.target.value)} className="px-4 py-3 bg-white border border-slate-200 rounded-xl text-xs font-black text-slate-700 outline-none focus:border-indigo-500 shadow-sm cursor-pointer" />
           
           <button onClick={() => setIsSettingsOpen(!isSettingsOpen)} className="bg-white border border-slate-200 text-slate-700 px-4 py-3 rounded-xl font-black text-[10px] uppercase tracking-widest shadow-sm hover:bg-slate-50 transition-all">
             ⚙️ ŞABLONLAR
@@ -253,8 +281,12 @@ export default function RosterPage() {
             {isSaving ? "KAYDEDİLİYOR..." : "💾 SİSTEME KAYDET"}
           </button>
 
-          <button onClick={() => exportToExcel("xlsx")} className="bg-emerald-600 text-white px-4 py-3 rounded-xl font-black text-[10px] uppercase tracking-widest shadow-md hover:bg-emerald-700 transition-all">
+          <button onClick={() => handleExport("xlsx")} className="bg-emerald-600 text-white px-4 py-3 rounded-xl font-black text-[10px] uppercase tracking-widest shadow-md hover:bg-emerald-700 transition-all">
             .XLSX İNDİR
+          </button>
+          
+          <button onClick={() => handleExport("ods")} className="bg-amber-500 text-white px-4 py-3 rounded-xl font-black text-[10px] uppercase tracking-widest shadow-md hover:bg-amber-600 transition-all">
+            .ODS İNDİR
           </button>
         </div>
       </div>
