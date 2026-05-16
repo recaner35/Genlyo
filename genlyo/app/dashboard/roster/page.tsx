@@ -15,7 +15,10 @@ export default function RosterPage() {
   const { data: session } = useSession();
   const [staff, setStaff] = useState<any[]>([]);
   const [roster, setRoster] = useState<RosterRow[]>([]);
-  const [storeName, setStoreName] = useState("MUĞLA FETHİYE ERASTA");
+  
+  // 🚀 Mağaza adını başlangıçta "Bekleniyor" yapıyoruz
+  const [storeName, setStoreName] = useState("MAĞAZA BİLGİSİ YÜKLENİYOR...");
+  
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
   
@@ -37,6 +40,11 @@ export default function RosterPage() {
     const personnelRes = await fetch('/api/personnel');
     const personnelData = await personnelRes.json();
     setStaff(personnelData);
+
+    // 🚀 DİNAMİK MAĞAZA ADI ÇÖZÜMÜ - YÖNTEM 1: Kendi Personellerinin Bağlı Olduğu Mağaza
+    if (personnelData.length > 0 && personnelData[0].store?.name) {
+      setStoreName(personnelData[0].store.name.toUpperCase());
+    }
 
     const savedRes = await fetch(`/api/roster?date=${weekStart}`);
     const savedData = await savedRes.json();
@@ -61,11 +69,18 @@ export default function RosterPage() {
   useEffect(() => {
     fetch('/api/stores').then(res => res.json()).then(resData => {
        const stores = Array.isArray(resData) ? resData : (resData.store ? [resData.store] : []);
-       if (stores.length > 0 && stores[0].name) {
-          setStoreName(stores[0].name.toUpperCase());
+       
+       // 🚀 DİNAMİK MAĞAZA ADI ÇÖZÜMÜ - YÖNTEM 2: Oturum Açan Kullanıcının "storeId"si ile Eşleştirme
+       const userStoreId = (session?.user as any)?.storeId;
+       
+       if (userStoreId) {
+          const myStore = stores.find((s: any) => s.id === userStoreId);
+          if (myStore && myStore.name) {
+             setStoreName(myStore.name.toUpperCase());
+          }
        }
     });
-  }, []);
+  }, [session]);
 
   const calculateHours = (val: string) => {
     if (!val || val === "İZİN" || val === "RAPOR") return 0;
@@ -199,15 +214,14 @@ export default function RosterPage() {
     }
   };
 
-  // 🚀 KUSURSUZ ŞABLONLU EXCEL / ODS EXPORT MOTORU
   const handleExport = (format: "xlsx" | "ods") => {
     const wsData: any[][] = [];
     
-    // Satır 1 (A1: MAĞAZA, B1: ADI, C1: SOYADI, D1-J1: Günler)
+    // Satır 1: MAĞAZA, ADI, SOYADI ve Günler
     wsData.push(["MAĞAZA", "ADI", "SOYADI", ...DAYS]);
     
-    // Satır 2 (Tarihler: "4.May.26" formatında)
-    const dateRow = ["", "", ""]; // A2, B2, C2 boş kalacak (Birleşecekler)
+    // Satır 2: Dinamik Tarihler (Excel şablonuna birebir uyumlu)
+    const dateRow = ["", "", ""]; 
     DAYS.forEach((_, i) => {
       const d = new Date(weekStart);
       d.setDate(d.getDate() + i);
@@ -216,14 +230,13 @@ export default function RosterPage() {
     });
     wsData.push(dateRow);
 
-    // Satır 3 ve Sonrası (Personel Listesi)
+    // Satır 3 ve sonrası: Personel verileri (Saatler rakama dönüştürülüyor)
     roster.forEach((row, idx) => {
-       // Çıktıda yazıları rakamlara (saatlere) çeviren kısım
        const shiftValues = row.shifts.map(s => {
           if (s.value === "AÇILIŞ") return shiftTimes.ACILIS;
           if (s.value === "KAPANIŞ") return shiftTimes.KAPANIS;
           if (s.value === "ARA") return shiftTimes.ARA;
-          return s.value || ""; // FULL, İZİN veya Özel Saatleri aynen bırak
+          return s.value || ""; 
        });
 
        const storeDisplay = idx === 0 ? storeName.toUpperCase() : "";
@@ -232,19 +245,19 @@ export default function RosterPage() {
 
     const ws = XLSX.utils.aoa_to_sheet(wsData);
 
-    // 🔗 HÜCRE BİRLEŞTİRME KOMUTLARI (!merges)
+    // KUSURSUZ HÜCRE BİRLEŞTİRMELERİ (!merges)
     ws['!merges'] = [
-      { s: { r: 0, c: 0 }, e: { r: 1, c: 0 } }, // A1 ve A2 birleştir (MAĞAZA)
-      { s: { r: 0, c: 1 }, e: { r: 1, c: 1 } }, // B1 ve B2 birleştir (ADI)
-      { s: { r: 0, c: 2 }, e: { r: 1, c: 2 } }, // C1 ve C2 birleştir (SOYADI)
+      { s: { r: 0, c: 0 }, e: { r: 1, c: 0 } }, // A1-A2 (MAĞAZA)
+      { s: { r: 0, c: 1 }, e: { r: 1, c: 1 } }, // B1-B2 (ADI)
+      { s: { r: 0, c: 2 }, e: { r: 1, c: 2 } }, // C1-C2 (SOYADI)
     ];
 
-    // A3'ten başlayıp tablonun sonuna kadar Mağaza Adı için hücreleri dikey birleştir
+    // A3'ten başlayıp tablonun sonuna kadar Mağaza Adı için dikey birleştirme
     if (roster.length > 0) {
       ws['!merges'].push({ s: { r: 2, c: 0 }, e: { r: 1 + roster.length, c: 0 } });
     }
 
-    // Sütun genişlikleri (Daha estetik durması için)
+    // Sütun genişlikleri (Estetik duruş için)
     ws['!cols'] = [
       { wch: 25 }, { wch: 15 }, { wch: 15 }, 
       { wch: 12 }, { wch: 12 }, { wch: 12 }, { wch: 12 }, { wch: 12 }, { wch: 12 }, { wch: 12 }
@@ -304,7 +317,12 @@ export default function RosterPage() {
         <table className="w-full text-left border-collapse min-w-[1200px]">
           <thead className="bg-slate-900 text-white border-b-4 border-indigo-600">
             <tr className="text-[10px] font-black uppercase tracking-widest">
-              <th className="p-4 w-[16%]">Personel</th>
+              <th className="p-4 w-[16%]">
+                 <div className="flex flex-col">
+                    <span>Personel</span>
+                    <span className="text-[9px] text-indigo-400 mt-1">{storeName}</span>
+                 </div>
+              </th>
               {DAYS.map((day, i) => {
                  const d = new Date(weekStart); d.setDate(d.getDate() + i);
                  return (
