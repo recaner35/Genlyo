@@ -27,22 +27,52 @@ function getBlackFriday(year: number): number {
     return firstFriday + 21;
 }
 
+// ============================================================================
+// 🕌 HİCRİ TAKVİM SABİT TABLO (2024-2030)
+// Ramazan ve Kurban Bayramı tarihleri her yıl ~10 gün kayar.
+// Astronomik hesaplama yerine güvenilir sabit tablo kullanıyoruz.
+// ============================================================================
+
+const HIJRI_HOLIDAYS: Record<number, { ramazanStart: [number, number]; ramazanBayram: [number, number]; kurbanBayram: [number, number] }> = {
+    2024: { ramazanStart: [3, 11],  ramazanBayram: [4, 10],  kurbanBayram: [6, 17] },
+    2025: { ramazanStart: [2, 28],  ramazanBayram: [3, 30],  kurbanBayram: [6, 6]  },
+    2026: { ramazanStart: [2, 17],  ramazanBayram: [3, 19],  kurbanBayram: [5, 26] },
+    2027: { ramazanStart: [2, 7],   ramazanBayram: [3, 9],   kurbanBayram: [5, 16] },
+    2028: { ramazanStart: [1, 27],  ramazanBayram: [2, 26],  kurbanBayram: [5, 4]  },
+    2029: { ramazanStart: [1, 15],  ramazanBayram: [2, 14],  kurbanBayram: [4, 24] },
+    2030: { ramazanStart: [1, 5],   ramazanBayram: [2, 4],   kurbanBayram: [4, 13] },
+};
+
 function getHolidayContext(targetDate: Date) {
     const year = targetDate.getUTCFullYear();
-    const HOLIDAYS = [
+    const hijri = HIJRI_HOLIDAYS[year];
+
+    // SABİT TATİLLER + DİNÎ BAYRAMLAR + TİCARİ DÖNEMLER
+    const HOLIDAYS: { name: string; m: number; d: number; pre: number; post: number }[] = [
         { name: "Yılbaşı", m: 1, d: 1, pre: 4, post: 1 },
         { name: "Sevgililer Günü", m: 2, d: 14, pre: 5, post: 1 },
         { name: "23 Nisan", m: 4, d: 23, pre: 2, post: 0 },
         { name: "19 Mayıs", m: 5, d: 19, pre: 2, post: 0 },
         { name: "Anneler Günü", m: 5, d: getNthWeekdayOfMonth(year, 5, 0, 2), pre: 5, post: 1 },
         { name: "Babalar Günü", m: 6, d: getNthWeekdayOfMonth(year, 6, 0, 3), pre: 4, post: 1 },
+        { name: "Yaz İndirimleri", m: 7, d: 1, pre: 5, post: 5 },
         { name: "15 Temmuz", m: 7, d: 15, pre: 1, post: 0 },
         { name: "30 Ağustos", m: 8, d: 30, pre: 2, post: 0 },
+        { name: "Okul Açılışı", m: 9, d: 9, pre: 7, post: 3 },
         { name: "29 Ekim", m: 10, d: 29, pre: 2, post: 0 },
         { name: "11.11 İndirimleri", m: 11, d: 11, pre: 3, post: 2 },
         { name: "Black Friday", m: 11, d: getBlackFriday(year), pre: 7, post: 3 },
-        { name: "Öğretmenler Günü", m: 11, d: 24, pre: 3, post: 1 }
+        { name: "Öğretmenler Günü", m: 11, d: 24, pre: 3, post: 1 },
+        { name: "Yılsonu Kampanyası", m: 12, d: 25, pre: 10, post: 1 },
     ];
+
+    // Hicri bayramları (varsa) dinamik olarak ekle
+    if (hijri) {
+        HOLIDAYS.push(
+            { name: "Ramazan Bayramı", m: hijri.ramazanBayram[0], d: hijri.ramazanBayram[1], pre: 7, post: 3 },
+            { name: "Kurban Bayramı", m: hijri.kurbanBayram[0], d: hijri.kurbanBayram[1], pre: 5, post: 2 }
+        );
+    }
 
     for (const h of HOLIDAYS) {
         const holidayDate = new Date(Date.UTC(year, h.m - 1, h.d));
@@ -53,7 +83,53 @@ function getHolidayContext(targetDate: Date) {
             return { name: h.name, intensity: Math.max(0, Math.min(1, intensity)) };
         }
     }
+
+    // RAMAZAN AYI ETKİSİ (Negatif — satış düşüşü, bayram öncesi hariç)
+    if (hijri) {
+        const ramazanStart = new Date(Date.UTC(year, hijri.ramazanStart[0] - 1, hijri.ramazanStart[1]));
+        const ramazanBayramStart = new Date(Date.UTC(year, hijri.ramazanBayram[0] - 1, hijri.ramazanBayram[1]));
+        // Bayram öncesi 7 günden önce & Ramazan başlangıcından sonra ise "Ramazan etkisi"
+        const bayramPreStart = new Date(ramazanBayramStart.getTime() - 7 * 86400000);
+        if (targetDate >= ramazanStart && targetDate < bayramPreStart) {
+            return { name: "Ramazan Ayı", intensity: -0.15 }; // Negatif = satış düşüşü
+        }
+    }
+
     return { name: null, intensity: 0 };
+}
+
+// ============================================================================
+// 📅 DÖNEMSEL ETKİ ÇARPANI (SEASONAL CONTEXT)
+// Tekil gün etkisinden bağımsız, ayın genel sezonsal eğilimi
+// ============================================================================
+
+function getSeasonalContext(year: number, month: number): { season: string; multiplier: number } {
+    const hijri = HIJRI_HOLIDAYS[year];
+
+    // Ramazan Bayramı ayı = satış patlaması sezonu
+    if (hijri && month === hijri.ramazanBayram[0]) {
+        return { season: "Bayram Sezonu", multiplier: 1.08 };
+    }
+    // Kurban Bayramı ayı
+    if (hijri && month === hijri.kurbanBayram[0]) {
+        return { season: "Bayram Sezonu", multiplier: 1.05 };
+    }
+    // Ramazan ayı (bayram ayından farklıysa) = genel düşüş
+    if (hijri && month === hijri.ramazanStart[0] && month !== hijri.ramazanBayram[0]) {
+        return { season: "Ramazan Dönemi", multiplier: 0.93 };
+    }
+
+    // Sabit sezonlar
+    switch (month) {
+        case 1:  return { season: "Yılbaşı Sonrası", multiplier: 0.95 };  // Ocak durgunluk
+        case 2:  return { season: "Sevgililer Dönemi", multiplier: 1.02 };
+        case 6:  return { season: "Yaz Başlangıcı", multiplier: 1.03 };
+        case 7:  return { season: "Yaz İndirim Sezonu", multiplier: 1.05 };
+        case 9:  return { season: "Okul Sezonu", multiplier: 1.06 };
+        case 11: return { season: "Kampanya Sezonu", multiplier: 1.10 };   // 11.11 + Black Friday
+        case 12: return { season: "Yılsonu Kampanyası", multiplier: 1.08 };
+        default: return { season: "Standart", multiplier: 1.0 };
+    }
 }
 
 function calculateSlope(data: number[]): number {
@@ -169,10 +245,23 @@ class SalesModel {
         
         baseline = Math.max(baseline, this.currentRunRate * 0.85);
 
-        const hWeight = holidayCtx.name ? (this.weights.holidays[holidayCtx.name] || 1.3) : 1.0;
-        const hEff = 1 + (hWeight - 1) * holidayCtx.intensity;
+        // Özel gün etkisi (pozitif veya negatif olabilir — Ramazan ayı negatif)
+        let hEff = 1.0;
+        if (holidayCtx.name) {
+            if (holidayCtx.intensity < 0) {
+                // Negatif etki (Ramazan ayı gibi): doğrudan çarpan olarak uygula
+                hEff = 1 + holidayCtx.intensity;
+            } else {
+                const hWeight = this.weights.holidays[holidayCtx.name] || 1.3;
+                hEff = 1 + (hWeight - 1) * holidayCtx.intensity;
+            }
+        }
 
-        let result = baseline * this.weights.base * this.weights.dow[dow] * hEff;
+        // Dönemsel sezon etkisi (ayın genel eğilimi)
+        const seasonalCtx = getSeasonalContext(date.getUTCFullYear(), date.getUTCMonth() + 1);
+        const seasonalEff = seasonalCtx.multiplier;
+
+        let result = baseline * this.weights.base * this.weights.dow[dow] * hEff * seasonalEff;
         
         result = result * this.recentBias;
 
