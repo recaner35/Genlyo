@@ -192,7 +192,8 @@ export default function StorePerformancePage() {
 
                 // Müdürler toplam mağaza cirosundan, diğer personel kendi cirosundan prim alır
                 const revenueBase = isManager ? totalRevenue : pData.ownRevenue;
-                revenueBonus = revenueBase * bestRule.multiplier;
+                // Tablolarda 0.75 gibi girilen oranların yüzdelik karşılığı (0.0075) olması için 100'e bölüyoruz
+                revenueBonus = revenueBase * (bestRule.multiplier / 100);
             }
 
             let rawBrandBonus = 0;
