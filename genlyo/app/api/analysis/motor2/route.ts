@@ -47,7 +47,6 @@ function getHolidayContext(targetDate: Date) {
     const year = targetDate.getUTCFullYear();
     const hijri = HIJRI_HOLIDAYS[year];
 
-    // SABİT TATİLLER + DİNÎ BAYRAMLAR + TİCARİ DÖNEMLER
     const HOLIDAYS: { name: string; m: number; d: number; pre: number; post: number }[] = [
         { name: "Yılbaşı", m: 1, d: 1, pre: 4, post: 1 },
         { name: "Sevgililer Günü", m: 2, d: 14, pre: 5, post: 1 },
@@ -66,7 +65,6 @@ function getHolidayContext(targetDate: Date) {
         { name: "Yılsonu Kampanyası", m: 12, d: 25, pre: 10, post: 1 },
     ];
 
-    // Hicri bayramları (varsa) dinamik olarak ekle
     if (hijri) {
         HOLIDAYS.push(
             { name: "Ramazan Bayramı", m: hijri.ramazanBayram[0], d: hijri.ramazanBayram[1], pre: 7, post: 3 },
@@ -74,13 +72,16 @@ function getHolidayContext(targetDate: Date) {
         );
     }
 
+    const contexts: { name: string; marker: string; intensity: number }[] = [];
+
     for (const h of HOLIDAYS) {
         const holidayDate = new Date(Date.UTC(year, h.m - 1, h.d));
         const diffDays = Math.floor((targetDate.getTime() - holidayDate.getTime()) / 86400000);
         if (diffDays >= -h.pre && diffDays <= h.post) {
             const window = diffDays < 0 ? h.pre : h.post;
             const intensity = window === 0 ? (diffDays === 0 ? 1 : 0) : 1 - (Math.abs(diffDays) / (window + 1));
-            return { name: h.name, intensity: Math.max(0, Math.min(1, intensity)) };
+            const marker = diffDays === 0 ? '0' : (diffDays < 0 ? `-${Math.abs(diffDays)}` : `+${diffDays}`);
+            contexts.push({ name: h.name, marker, intensity: Math.max(-1, Math.min(1, intensity)) });
         }
     }
 
@@ -88,14 +89,22 @@ function getHolidayContext(targetDate: Date) {
     if (hijri) {
         const ramazanStart = new Date(Date.UTC(year, hijri.ramazanStart[0] - 1, hijri.ramazanStart[1]));
         const ramazanBayramStart = new Date(Date.UTC(year, hijri.ramazanBayram[0] - 1, hijri.ramazanBayram[1]));
-        // Bayram öncesi 7 günden önce & Ramazan başlangıcından sonra ise "Ramazan etkisi"
         const bayramPreStart = new Date(ramazanBayramStart.getTime() - 7 * 86400000);
         if (targetDate >= ramazanStart && targetDate < bayramPreStart) {
-            return { name: "Ramazan Ayı", intensity: -0.15 }; // Negatif = satış düşüşü
+            contexts.push({ name: "Ramazan Ayı", marker: '', intensity: -0.15 });
         }
     }
 
-    return { name: null, intensity: 0 };
+    if (contexts.length === 0) return { name: null, intensity: 0, contexts: [] };
+
+    const pos = contexts.filter(c => c.intensity > 0).map(c => c.intensity);
+    const neg = contexts.filter(c => c.intensity < 0).map(c => c.intensity);
+    let combinedIntensity = 0;
+    if (pos.length > 0) combinedIntensity = Math.max(...pos);
+    if (neg.length > 0) combinedIntensity = combinedIntensity === 0 ? Math.min(...neg) : Math.min(combinedIntensity, Math.min(...neg));
+
+    const name = contexts.map(c => c.marker === '0' || c.marker === '' ? `${c.name}` : `${c.name} (${c.marker})`).join(' • ');
+    return { name, intensity: combinedIntensity, contexts };
 }
 
 // ============================================================================
@@ -267,7 +276,8 @@ class SalesModel {
 
         return {
             predicted: Math.max(0, result),
-            context: holidayCtx.name || (dow === 0 || dow === 6 ? "Hafta Sonu" : "Standart")
+            context: holidayCtx.name || (dow === 0 || dow === 6 ? "Hafta Sonu" : "Standart"),
+            contexts: holidayCtx.contexts || []
         };
     }
 }
@@ -422,16 +432,18 @@ export async function GET(request: Request) {
                 const exist = dailyMap.get(d) || { 
                     day: d, dateString: dStr, dayOfWeek: dow, 
                     context: res.context, 
-                    isSpecial: res.context !== "Standart" && res.context !== "Hafta Sonu",
+                    contexts: res.contexts || [],
+                    isSpecial: (res.contexts || []).some((c:any) => c.name !== 'Standart' && c.name !== 'Hafta Sonu') || (res.context !== "Standart" && res.context !== "Hafta Sonu"),
                     isWeekend: dow === 0 || dow === 6,
                     mlPrediction: 0, dailyTargetMl: 0, actualRevenue: 0 
                 };
 
                 exist.mlPrediction += res.predicted;
                 
-                if (exist.context === "Standart" || (res.context !== "Standart" && res.context !== "Hafta Sonu")) {
+                if ((res.contexts && res.contexts.length) || (res.context && res.context !== "Standart" && res.context !== "Hafta Sonu")) {
+                    exist.contexts = res.contexts || [];
                     exist.context = res.context;
-                    exist.isSpecial = res.context !== "Standart" && res.context !== "Hafta Sonu";
+                    exist.isSpecial = (exist.contexts || []).some((c:any) => c.name !== 'Standart' && c.name !== 'Hafta Sonu') || (res.context !== "Standart" && res.context !== "Hafta Sonu");
                 }
 
                 const act = data.s.find(x => x.date.toISOString().split('T')[0] === dStr);

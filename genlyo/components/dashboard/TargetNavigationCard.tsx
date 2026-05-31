@@ -114,9 +114,11 @@ export default function TargetNavigationCard() {
                 <h4 className="text-lg font-black tracking-tight">{formatMoney(row.dailyTargetMl)}</h4>
               </div>
               
-              {row.context !== "Standart" && (
+              {(row.contexts && row.contexts.length > 0) && (
                 <div className={`mt-2 text-[8px] font-black uppercase px-2 py-0.5 rounded-md inline-block ${row.day === today ? 'bg-white/10 text-white' : 'bg-white border border-slate-200 text-slate-400'}`}>
-                  {row.context}
+                  {row.contexts.map((c:any, i:number) => (
+                    <span key={i} className="mr-1">{c.name}{c.marker && c.marker !== '0' ? ` (${c.marker})` : ''}</span>
+                  ))}
                 </div>
               )}
             </div>

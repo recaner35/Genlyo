@@ -260,11 +260,15 @@ export default function TargetsPage() {
                                              <span>{row.day} {MONTHS.find(m => m.id === Number(selectedMonth))?.name} <span className="text-slate-400 ml-1 font-bold">{getDayName(row.dayOfWeek)}</span></span>
                                              
                                              {/* 🚀 BAĞLAMSAL ŞIK ROZETLER (Anneler Günü, Black Friday vs.) */}
-                                             {row.context !== "Standart" && (
-                                                <span className={`mt-1 w-max text-[8px] font-black uppercase px-1.5 py-0.5 rounded-md ${row.isSpecial ? 'bg-amber-100 text-amber-700 border border-amber-200/50' : 'bg-slate-200 text-slate-500'}`}>
-                                                   {row.isSpecial && "✦ "} {row.context}
-                                                </span>
-                                             )}
+                                             {(row.contexts && row.contexts.length > 0) ? (
+                                                <div className="mt-1 flex flex-wrap gap-2">
+                                                  {row.contexts.map((c:any, i:number) => (
+                                                    <span key={i} className={`w-max text-[8px] font-black uppercase px-1.5 py-0.5 rounded-md ${row.isSpecial ? 'bg-amber-100 text-amber-700 border border-amber-200/50' : 'bg-slate-200 text-slate-500'}`}>
+                                                       {row.isSpecial && i === 0 ? '✦ ' : ''}{c.name}{c.marker && c.marker !== '0' ? ` (${c.marker})` : ''}
+                                                    </span>
+                                                  ))}
+                                                </div>
+                                             ) : null}
                                           </div>
                                        </td>
                                        <td className="py-3 px-5 text-right font-mono">

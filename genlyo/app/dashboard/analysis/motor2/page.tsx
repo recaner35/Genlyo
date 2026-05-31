@@ -216,12 +216,17 @@ export default function AnalysisMotor2Page() {
                         <div className="font-black text-xs text-slate-800">
                             {row.day} {MONTHS[month-1].name} <span className="font-bold text-slate-400 ml-1">{getDayName(row.dayOfWeek)}</span>
                         </div>
-                        {row.isSpecial ? (
-                            <div className="text-[10px] font-black text-amber-600 mt-1 flex items-center gap-1">
-                                <span>✦</span> {row.context}
-                            </div>
+                        {row.contexts && row.contexts.length > 0 ? (
+                          <div className="mt-1 flex flex-wrap gap-2">
+                            {row.contexts.map((c: any, ci: number) => (
+                              <div key={ci} className="text-[10px] font-black text-amber-600 inline-flex items-center gap-1 bg-amber-50 px-2 py-1 rounded">
+                                <span>✦</span>
+                                <span>{c.name}{c.marker && c.marker !== '0' ? ` (${c.marker})` : ''}</span>
+                              </div>
+                            ))}
+                          </div>
                         ) : row.isWeekend ? (
-                            <div className="text-[10px] font-bold text-indigo-400 mt-1">{row.context}</div>
+                          <div className="text-[10px] font-bold text-indigo-400 mt-1">{row.context}</div>
                         ) : null}
                       </td>
                       
