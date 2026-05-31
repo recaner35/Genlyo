@@ -10,7 +10,7 @@ export default function EngineCard({
   title: string;
   subtitle?: string;
   bullets?: string[];
-  multipliers?: { label: string; value: number | string }[];
+  multipliers?: { label: string; value: number | string | number[] }[];
   explanation?: string;
 }) {
   return (
@@ -35,7 +35,11 @@ export default function EngineCard({
             {multipliers.map((m, i) => (
               <div key={i} className="bg-slate-50 rounded-lg p-2 text-sm font-bold flex justify-between items-center">
                 <span className="text-slate-600">{m.label}</span>
-                <span className="text-indigo-600">{typeof m.value === 'number' ? m.value.toFixed ? m.value.toFixed(2) : m.value : m.value}</span>
+                <span className="text-indigo-600">
+                  {Array.isArray(m.value)
+                    ? m.value.map(v => (typeof v === 'number' ? v.toFixed(2) : String(v))).join(', ')
+                    : (typeof m.value === 'number' ? (m.value as number).toFixed(2) : String(m.value))}
+                </span>
               </div>
             ))}
           </div>
